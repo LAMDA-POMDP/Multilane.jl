@@ -11,7 +11,7 @@ struct MLMPCPolicy{P<:Policy} <: Policy
     planner::P
 end
 
-Base.srand(p::MLMPCPolicy, s) = srand(p.planner, s)
+srand(p::MLMPCPolicy, s) = srand(p.planner, s)
 action_info(p::MLMPCPolicy, b) = action_info(p.planner, most_likely_state(b))
 action(p::MLMPCPolicy, b) = first(action_info(p, b))
 
@@ -28,6 +28,6 @@ struct MeanMPCPlanner{P<:Policy} <: Policy
     planner::P
 end
 
-Base.srand(p::MeanMPCPlanner, s) = srand(p.planner, s)
+srand(p::MeanMPCPlanner, s) = srand(p.planner, s)
 action_info(p::MeanMPCPlanner, b) = action_info(p.planner, mean(b))
 action(p::MeanMPCPlanner, b) = first(action_info(p, b))

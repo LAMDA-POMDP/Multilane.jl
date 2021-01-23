@@ -4,18 +4,18 @@ Gives a reward of +1 if sp is the target lane
 struct TargetLaneReward <: AbstractMLRewardModel
     target_lane::Int
 end
-function reward(mdp::MLMDP{MLState, MLAction, D, TargetLaneReward},
+function POMDPs.reward(mdp::MLMDP{MLState, MLAction, D, TargetLaneReward},
           s::MLState,
           ::MLAction,
           sp::MLState) where D<:AbstractMLDynamicsModel
-    return isnull(s.terminal) && sp.cars[1].y == mdp.rmodel.target_lane
+    return nothing === (s.terminal) && sp.cars[1].y == mdp.rmodel.target_lane
 end
 
-function reward(mdp::MLPOMDP{MLState, MLAction, MLPhysicalState, D, TargetLaneReward},
+function POMDPs.reward(mdp::MLPOMDP{MLState, MLAction, MLPhysicalState, D, TargetLaneReward},
           s::MLState,
           ::MLAction,
           sp::MLState) where D<:AbstractMLDynamicsModel
-    return isnull(s.terminal) && sp.cars[1].y == mdp.rmodel.target_lane
+    return nothing === (s.terminal) && sp.cars[1].y == mdp.rmodel.target_lane
 end
 
 """
@@ -29,7 +29,7 @@ Reward of +1 on transition INTO target lane, -lambda on unsafe transitions, -lan
     lane_change_cost::Float64       = 0.0 # always positive
 end
 
-function reward(p::NoCrashProblem{SuccessReward}, s::MLState, ::MLAction, sp::MLState)
+function POMDPs.reward(p::NoCrashProblem{SuccessReward}, s::MLState, ::MLAction, sp::MLState)
     if sp.cars[1].y == p.rmodel.target_lane && s.cars[1].y != p.rmodel.target_lane
         r = 1.0
     else

@@ -34,7 +34,7 @@ stats = list["stats"]
 metrics = get(list, "metrics", [])
 
 sims = run_simulations(stats, objects, progress=args["progress"])
-if any(isa(r, RemoteException) || !isnull(r.exception) for r in sims)
+if any(isa(r, RemoteException) || nothing !== (r.exception) for r in sims)
     print_with_color(:red, """
         Error in simulations. Run the following to debug:
 

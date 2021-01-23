@@ -1,27 +1,19 @@
-push!(LOAD_PATH,joinpath("..","src"))
+# push!(LOAD_PATH,joinpath("..","src"))
 using Multilane
-using Base.Test
+using Test
 using POMDPs
-using Gallium
+# using Gallium
+using Debugger
+using Random
+using LinearAlgebra
 
-import Iterators.product
-import Base.assert
+
+# import Iterators.product
+# import Base.assert
 
 ##############
 ##UNIT TESTS##
 ##############
-
-function assert(expr,val,fn::Function= ==,varname::AbstractString="")
-	if !fn(expr,val)
-    error("Assertion failed: $varname : expected $val, got $expr")
-	end
-end
-
-function assert(expr,val,flag::Bool)
-	if expr == val
-		error("Assertion failed: expected NOT $val, got $expr")
-	end
-end
 
 function Multilane.MLState(pos::Real, vel::Real, cars::Array{CarState,1}, x::Real=50.)
     #x = mdp.phys_param.lane_length/2.
@@ -51,10 +43,10 @@ function test_hashing(s::AbstractString, ps)
 	d1 = Dict{typeof(ps[1]),Int}()
 	d1[ps[1]] = 1
 	d1[ps[1]] = 1
-	assert(length(d1),1)
+	@assert(length(d1)==1)
 	d2 = Dict{typeof(ps[1]),Int}(p=>3 for p in [ps[2], ps[2]])
-	assert(length(d2),1)
-	assert(get(d1,ps[1],0),1)
+	@assert(length(d2)==1)
+	@assert(get(d1,ps[1],0)==1)
 end
 
 function test_equality(s::AbstractString,ps)
@@ -65,16 +57,16 @@ function test_equality(s::AbstractString,ps)
 	for i = 1:length(ps)
 		for j = 1:length(ps)
 			if i == j
-				assert(ps[i],deepcopy(ps[j]))
+				@assert(ps[i]==deepcopy(ps[j]))
 			else
-				assert(ps[i],ps[j],true)
-				assert(ps[j],ps[i],true)
+				@assert(ps[i] != ps[j])
+				@assert(ps[j] != ps[i])
 			end
 		end
 	end
-	#assert(ps[1] == ps[1])
-	#assert(ps[2] != ps[3])
-	#assert(ps[3] != ps[2])
+	#@assert(ps[1] == ps[1])
+	#@assert(ps[2] != ps[3])
+	#@assert(ps[3] != ps[2])
 end
 
 include("test_idm.jl")

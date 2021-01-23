@@ -42,7 +42,7 @@ function test_encounter()
     s = state_fixture()
     deleteat!(s.cars, 2)
     rng = MersenneTwister(2)
-    sp, r = generate_sr(mdp, s, MLAction(0.0,0.0), rng)
+    sp, r = @gen(:sp,:r)(mdp, s, MLAction(0.0,0.0), rng)
     @test length(sp.cars) == 3
 end
 
@@ -59,22 +59,22 @@ function test_snapback()
     s = state_fixture()
     s.cars[1] = ego_state_spec_y(2.0)
     a1 = MLAction(0,1.0)
-    sp,r = generate_sr(mdp, s, a1, rng)
+    sp,r = @gen(:sp,:r)(mdp, s, a1, rng)
     @test sp.cars[1].y == 2.0 + 1.0*0.75
     a2 = MLAction(0,2.0)
-    sp,r = generate_sr(mdp, s, a2, rng)
+    sp,r = @gen(:sp,:r)(mdp, s, a2, rng)
     @test sp.cars[1].y == 3.0
     s.cars[1] = ego_state_spec_y(1.99)
     a3 = MLAction(0,1.0)
-    sp,r = generate_sr(mdp, s, a3, rng)
+    sp,r = @gen(:sp,:r)(mdp, s, a3, rng)
     @test sp.cars[1].y == 2.0
     s.cars[1] = ego_state_spec_y(2.01)
     a4 = MLAction(0,-1.0)
-    sp,r = generate_sr(mdp, s, a4, rng)
+    sp,r = @gen(:sp,:r)(mdp, s, a4, rng)
     @test sp.cars[1].y == 2.0
     s.cars[1] = ego_state_spec_y(1.01)
     a5 = MLAction(0.,0.1)
-    sp,r = generate_sr(mdp, s, a5, rng)
+    sp,r = @gen(:sp,:r)(mdp, s, a5, rng)
     @test sp.cars[1].y == 1.01 + 0.1*0.75
 end
 

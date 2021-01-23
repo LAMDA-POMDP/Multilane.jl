@@ -86,7 +86,7 @@ sdm.lane_terminate = false
 sdm.max_dist = 1200 # give the car some extra room at the end
 spomdp = NoCrashPOMDP{typeof(rmodel), typeof(dmodel.behaviors)}(sdm, rmodel, 0.95, true);
 s = last(state_hist(hist))
-s.terminal = Nullable{Symbol}()
+s.terminal = nothing
 policy = Multilane.BehaviorPolicy(spomdp, Multilane.NORMAL, true, rng)
 bonus_hist = simulate(sim, spomdp, policy, up, MLPhysicalState(s), s)
 @showprogress for (s, r, sp) in eachstep(bonus_hist, "s,r,sp")

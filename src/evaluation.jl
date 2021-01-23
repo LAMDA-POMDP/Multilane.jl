@@ -1,5 +1,5 @@
 import Base: mean, std, repr, length
-import Iterators: take
+import IterTools: take
 
 function set_rng!(solver::Solver, rng::AbstractRNG)
     solver.rng = rng
@@ -7,7 +7,7 @@ end
 
 function test_run(eval_problem::NoCrashMDP, initial_state::MLState, solver_problem::NoCrashMDP, solver::Solver, rng_seed::Integer, max_steps=10000)
     set_rng!(solver, MersenneTwister(rng_seed))
-    sim = POMDPToolbox.HistoryRecorder(rng=MersenneTwister(rng_seed), max_steps=max_steps, capture_exception=true)
+    sim = POMDPSimulators.HistoryRecorder(rng=MersenneTwister(rng_seed), max_steps=max_steps, capture_exception=true)
     terminal_problem = deepcopy(eval_problem)
     terminal_problem.dmodel.lane_terminate = true
     r = simulate(sim, terminal_problem, solve(solver,solver_problem), initial_state)
@@ -16,7 +16,7 @@ end
 
 function test_run_return_policy(eval_problem::NoCrashMDP, initial_state::MLState, solver_problem::NoCrashMDP, solver::Solver, rng_seed::Integer, max_steps=10000)
     set_rng!(solver, MersenneTwister(rng_seed))
-    sim = POMDPToolbox.HistoryRecorder(rng=MersenneTwister(rng_seed), max_steps=max_steps)
+    sim = POMDPSimulators.HistoryRecorder(rng=MersenneTwister(rng_seed), max_steps=max_steps)
     policy = solve(solver, solver_problem)
     terminal_problem = deepcopy(eval_problem)
     terminal_problem.dmodel.lane_terminate = true
@@ -33,10 +33,10 @@ function run_simulations(stats::DataFrame,
 
     nb_sims = nrow(stats)
 
-    all_solvers = Vector{Any}(nb_sims)
-    all_problems = Vector{Any}(nb_sims)
-    all_solver_problems = Vector{Any}(nb_sims)
-    all_initial = Vector{Any}(nb_sims)
+    all_solvers = Vector{Any}(undef, nb_sims)
+    all_problems = Vector{Any}(undef, nb_sims)
+    all_solver_problems = Vector{Any}(undef, nb_sims)
+    all_initial = Vector{Any}(undef, nb_sims)
 
     solvers = objects["solvers"]
     problems = objects["problems"]
@@ -94,7 +94,7 @@ function run_simulations(eval_problems::AbstractVector,
                         )
         end
     else
-        sims = Vector{HistoryRecorder}(length(eval_problems))
+        sims = Vector{HistoryRecorder}(undef, length(eval_problems))
         if progress
             @showprogress for j in 1:length(eval_problems)
                 sims[j] = test_run(eval_problems[j],
@@ -117,7 +117,7 @@ function run_simulations(eval_problems::AbstractVector,
     end
 
     for (i,r) in enumerate(sims)
-        if isa(r, RemoteException) || !isnull(r.exception)
+        if isa(r, RemoteException) || nothing !== (r.exception)
             println("Exception in simulation $(i)!")
             println("===============================")
             if isa(r, RemoteException)
@@ -127,9 +127,9 @@ function run_simulations(eval_problems::AbstractVector,
                 Base.show_backtrace(STDOUT, r.captured.processed_bt)
                 println()
             else
-                Base.showerror(STDOUT, get(r.exception))
+                Base.showerror(STDOUT, r.exception)
                 println()
-                Base.show_backtrace(STDOUT, get(r.backtrace))
+                Base.show_backtrace(STDOUT, r.backtrace)
                 println()
             end
             println("===============================")
@@ -178,7 +178,7 @@ function fill_stats!(stats::DataFrame, objects::Dict, sims::Vector;
     for i in 1:nb_sims
         r = 0.0
         dt = eval_problems[i].dmodel.phys_param.dt
-        steps_to_lane = Nullable{Int}()
+        steps_to_lane = nothing
         steps_in_lane = 0
         nb_brakes = 0
         crashed = false
@@ -195,8 +195,8 @@ function fill_stats!(stats::DataFrame, objects::Dict, sims::Vector;
                 steps_in_lane += 1
             end
             if s.cars[1].y == eval_problems[i].rmodel.target_lane
-                if isnull(steps_to_lane)
-                    steps_to_lane = Nullable{Int}(k-1)
+                if nothing === (steps_to_lane)
+                    steps_to_lane = k-1
                 end
             end
 
@@ -206,20 +206,20 @@ function fill_stats!(stats::DataFrame, objects::Dict, sims::Vector;
         end
 
         if sims[i].state_hist[end].cars[1].y == eval_problems[i].rmodel.target_lane
-            if isnull(steps_to_lane)
-                steps_to_lane = Nullable{Int}(length(sims[i].state_hist)-1)
+            if nothing === (steps_to_lane)
+                steps_to_lane = length(sims[i].state_hist)-1
             end
         end
 
-        if isnull(sims[i].state_hist[end].terminal)
+        if nothing === (sims[i].state_hist[end].terminal)
             stats[:term][i] = ""
         else
-            stats[:term][i] = string(get(sims[i].state_hist[end].terminal))
+            stats[:term][i] = string(sims[i].state_hist[end].terminal)
         end
 
         stats[:reward][i] = r
         stats[:nb_brakes][i] = nb_brakes
-        stats[:steps_to_lane][i] = isnull(steps_to_lane) ? NA : get(steps_to_lane)
+        stats[:steps_to_lane][i] = nothing === (steps_to_lane) ? NA : steps_to_lane
         stats[:time_to_lane][i] = stats[:steps_to_lane][i]*dt
         stats[:steps_in_lane][i] = steps_in_lane
         stats[:crash][i] = crashed

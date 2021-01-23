@@ -184,7 +184,7 @@ for cor in 0.0:0.2:1.0
         # data = run(sims) do sim, hist
         data = run_parallel(sims) do sim, hist
 
-            if isnull(exception(hist))
+            if nothing === (exception(hist))
                 p = problem(sim)
                 steps_in_lane = 0
                 steps_to_lane = missing
@@ -228,14 +228,14 @@ for cor in 0.0:0.2:1.0
                         :mean_ego_speed=>distance/(n_steps(hist)*p.dmodel.phys_param.dt),
                         :min_speed=>min_speed,
                         :min_ego_speed=>min_ego_speed,
-                        :terminal=>string(get(last(state_hist(hist)).terminal, missing))
+                        :terminal=>string(last(state_hist(hist).terminal, missing))
                        ]
             else
                 warn("Error in Simulation")
-                showerror(STDERR, get(exception(hist)))
-                # show(STDERR, MIME("text/plain"), stacktrace(get(backtrace(hist))))
+                showerror(STDERR, exception(hist))
+                # show(STDERR, MIME("text/plain"), stacktrace(backtrace(hist)))
                 return [:exception=>true,
-                        :ex_type=>string(typeof(get(exception(hist))))
+                        :ex_type=>string(typeof(exception(hist)))
                        ]
             end
         end

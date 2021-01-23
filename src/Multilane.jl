@@ -4,27 +4,29 @@ module Multilane
 import StatsBase: Weights, sample
 
 using POMDPs
-import POMDPs: actions, discount, isterminal, iterator
+import POMDPs: actions, discount, isterminal
+# import POMDPs.itertor
 import POMDPs: rand, reward
 import POMDPs: solve, action
 import POMDPs: update, initialize_belief
-import POMDPs: generate_s, generate_sr, initial_state, generate_o, generate_sor
 
 import Distributions: Dirichlet, Exponential, Gamma, rand
 import Distributions
 
-import POMDPToolbox: action_info, generate_sori, generate_sri
-
-import Iterators
-
-import Base: ==, hash, length, vec, +, -, *, .*, ^, .^, .-, /, sqrt, zero, abs, max
+import Base: ==, hash, length, vec, +, -, *, ^, /, sqrt, zero, abs, max
 
 # import POMDPToolbox: Particle, ParticleBelief
 
 using DataFrames
+using Random
+using LinearAlgebra
 using ProgressMeter
-using PmapProgressMeter
-using POMDPToolbox
+using Printf
+# using PmapProgressMeter
+using POMDPModelTools
+using POMDPPolicies
+using BeliefUpdaters
+using POMDPSimulators
 using MCTS # so that we can define node_tag, etc.
 using POMCPOW
 using CPUTime

@@ -41,5 +41,5 @@ open(joinpath(dir, "results_list.txt")) do list
 end
 
 filename = string("combined_results_", Dates.format(Dates.now(),"u_d_HH_MM"), ".jld")
-results = gather_results(files, save_file=Nullable(filename))
+results = gather_results(files, save_file=filename)
 println("saved to $filename")

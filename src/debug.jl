@@ -1,6 +1,6 @@
 const GLOBAL_DEBUG = 1
 
-import Gallium
+import Debugger
 
 # macro if_debug(expr)
 #     return quote

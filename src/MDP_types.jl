@@ -25,11 +25,11 @@ mutable struct OriginalRewardModel <: AbstractMLRewardModel
 	lanechange_cost::Float64
 end
 
-mutable struct IDMMOBILModel <: AbstractMLDynamicsModel
+mutable struct IDMMOBILModel{BM <: BehaviorModel} <: AbstractMLDynamicsModel
 	nb_cars::Int
     phys_param::PhysicalParam
 
-	BEHAVIORS::Array{BehaviorModel,1}
+	BEHAVIORS::Array{BM,1}
 	NB_PHENOTYPES::Int
 
 	encounter_prob::Float64
@@ -37,7 +37,7 @@ mutable struct IDMMOBILModel <: AbstractMLDynamicsModel
 end
 
 function IDMMOBILModel(nb_cars, phys_param; encounter_prob=0.5, accels=Int[-3,-2,-1,0,1])
-    BEHAVIORS = IDMMOBILBehavior[IDMMOBILBehavior(x[1],x[2],x[3],idx) for (idx,x) in enumerate(Iterators.product(["cautious","normal","aggressive"],[phys_param.v_slow+0.5;phys_param.v_med;phys_param.v_fast],[phys_param.l_car]))]
+    BEHAVIORS = IDMMOBILBehavior[IDMMOBILBehavior(x[1],x[2],x[3],idx) for (idx,x) in enumerate(Iterators.product(["cautious","normal","aggressive"],[phys_param.v_slow+0.5;phys_param.v_med;phys_param.v_fast],[phys_param.l_car]))][:]
     return IDMMOBILModel(nb_cars, phys_param, BEHAVIORS, length(BEHAVIORS), encounter_prob, accels)
 end
 
@@ -62,7 +62,7 @@ mutable struct MLState
     x::Float64 # total distance traveled by the ego
     t::Float64 # total time of the simulation
 	cars::Array{CarState,1} #NOTE ego car is first car
-    terminal::Nullable{Any} # SHOULD BE Nullable{Symbol} if not null, this is a terminal state, see below
+    terminal::Union{Nothing,Any} # SHOULD BE Union{Nothing,Symbol} if not null, this is a terminal state, see below
 end
 # more constructors at bottom
 
@@ -75,19 +75,19 @@ Terminal states: Each terminal state is not considered different, ther terminal 
 =#
 
 function ==(a::MLState, b::MLState)
-    if isnull(a.terminal) && isnull(b.terminal) # neither terminal
+    if nothing === a.terminal && nothing === b.terminal # neither terminal
         return a.x == b.x && a.t == b.t && a.cars == b.cars
-    elseif !isnull(a.terminal) && !isnull(b.terminal) # both terminal
-        return get(a.terminal) == get(b.terminal)
+    elseif nothing !== a.terminal && nothing !== b.terminal # both terminal
+        return a.terminal == b.terminal
     else # one is terminal
         return false
     end
 end
 function Base.hash(a::MLState, h::UInt64=zero(UInt64))
-    if isnull(a.terminal)
+    if nothing === a.terminal
         return hash(a.x, hash(a.t, hash(a.cars,h)))
     else
-        return hash(get(a.terminal), h)
+        return hash(a.terminal, h)
     end
 end
 
@@ -99,7 +99,7 @@ MLAction() = MLAction(0,0)
 ==(a::MLAction,b::MLAction) = (a.acc==b.acc) && (a.lane_change==b.lane_change)
 Base.hash(a::MLAction,h::UInt64=zero(UInt64)) = hash(a.acc,hash(a.lane_change,h))
 function MLAction(x::Array{Float64,1})
-	assert(length(x)==2)
+	@assert(length(x)==2)
 	lane_change = abs(x[2]) <= 0.3 ? 0 : sign(x[2])
 	return MLAction(x[1],lane_change)
 end
@@ -131,26 +131,26 @@ struct MLPhysicalState
     x::Float64
     t::Float64
     cars::Array{CarPhysicalState,1}
-    terminal::Nullable{Any} # Should be Nullable{Symbol}
+    terminal::Union{Nothing,Any} # Should be Union{Nothing,Symbol}
 end
 const MLObs = MLPhysicalState
 
 MLPhysicalState(s::MLState) = MLPhysicalState(s.x, s.t, CarPhysicalState[CarPhysicalState(cs) for cs in s.cars], s.terminal)
 
 function ==(a::MLPhysicalState, b::MLPhysicalState)
-    if isnull(a.terminal) && isnull(b.terminal) # neither terminal
+    if nothing === a.terminal && nothing === b.terminal # neither terminal
         return a.x == b.x && a.t == b.t && a.cars == b.cars
-    elseif !isnull(a.terminal) && !isnull(b.terminal) # both terminal
-        return get(a.terminal) == get(b.terminal)
+    elseif nothing !== a.terminal && nothing !== b.terminal # both terminal
+        return a.terminal == b.terminal
     else # one is terminal
         return false
     end
 end
 function Base.hash(a::MLPhysicalState, h::UInt64=zero(UInt64))
-    if isnull(a.terminal)
+    if nothing === a.terminal
         return hash(a.x, hash(a.t, hash(a.cars,h)))
     else
-        return hash(get(a.terminal), h)
+        return hash(a.terminal, h)
     end
 end
 

@@ -12,7 +12,7 @@ weights(b::BehaviorParticleBelief, i::Int) = insert!(diff(b.cweights[i]), 1, fir
 
 function rand(rng::AbstractRNG,
                 b::BehaviorParticleBelief,
-                s::MLState=MLState(b.physical, Vector{CarState}(length(b.physical.cars))))
+                s::MLState=MLState(b.physical, Vector{CarState}(undef, length(b.physical.cars))))
     resize!(s.cars, length(b.physical.cars))
     for i in 1:length(s.cars)
         particle = sample_cweighted(rng, b.particles[i], b.cweights[i])
@@ -25,7 +25,7 @@ function rand(rng::AbstractRNG,
                 b::BehaviorParticleBelief,
                 sample_noises::Vector)
 
-    s::MLState=MLState(b.physical, Vector{CarState}(length(b.physical.cars)))
+    s::MLState=MLState(b.physical, Vector{CarState}(undef, length(b.physical.cars)))
     resize!(s.cars, length(b.physical.cars))
     for i in 1:length(s.cars)
         particle = sample_cweighted(rng, b.particles[i], b.cweights[i])
@@ -38,16 +38,16 @@ end
 # action(p::Policy, b::BehaviorParticleBelief) = action(p, b.physical)
 
 function most_likely_state(b::BehaviorParticleBelief)
-    s = MLState(b.physical, Vector{CarState}(length(b.physical.cars)))
+    s = MLState(b.physical, Vector{CarState}(undef, length(b.physical.cars)))
     for i in 1:length(s.cars)
-        ml_ind = indmax(weights(b, i))
+        ml_ind = argmax(weights(b, i))
         behavior = b.particles[i][ml_ind]
         s.cars[i] = CarState(b.physical.cars[i], behavior)
     end
     return s
 end
 
-function Base.mean(b::BehaviorParticleBelief)
+function mean(b::BehaviorParticleBelief)
     bs = param_means(b)
     pcs = b.physical.cars
     cars = [CarState(pcs[i], bs[i]) for i in 1:length(bs)]
@@ -55,7 +55,7 @@ function Base.mean(b::BehaviorParticleBelief)
 end
 
 function param_means(b::BehaviorParticleBelief)
-    ms = Vector{eltype(first(b.particles))}(length(b.physical.cars))
+    ms = Vector{eltype(first(b.particles))}(undef, length(b.physical.cars))
     for i in 1:length(ms)
         wts = weights(b, i)
         ms[i] = sum(wts.*b.particles[i])/sum(wts)
@@ -64,10 +64,14 @@ function param_means(b::BehaviorParticleBelief)
 end
 function param_stds(b::BehaviorParticleBelief)
     means = param_means(b)
-    stds = Vector{IDMMOBILBehavior}(length(b.physical.cars))
+    stds = Vector{IDMMOBILBehavior}(undef, length(b.physical.cars))
     for i in 1:length(b.physical.cars)
         wts = weights(b, i)
-        stds[i] = sqrt(sum(wts.*(b.particles[i].-means[i]).^2)/sum(wts))
+        mean_particle = zero(eltype(b.particles[i]))
+        for (j, particle) in enumerate(b.particles[i])
+            mean_particle += wts[j] * (particle - means[i])^2
+        end
+        stds[i] = sqrt(mean_particle/sum(wts))
     end
     return stds
 end
@@ -88,14 +92,14 @@ function cweights_from_particles!(b::BehaviorParticleBelief,
             sizehint!(b.particles[i], length(particles))
             resize!(b.particles[i], 0)
         else
-            b.particles[i] = Vector{IDMMOBILBehavior}(length(particles))
+            b.particles[i] = Vector{IDMMOBILBehavior}(undef, length(particles))
             resize!(b.particles[i], 0)
         end
         if isassigned(b.cweights, i)
             sizehint!(b.cweights[i], length(particles))
             resize!(b.cweights[i], 0)
         else
-            b.cweights[i] = Vector{Float64}(length(particles))
+            b.cweights[i] = Vector{Float64}(undef, length(particles))
             resize!(b.cweights[i], 0)
         end
     end
@@ -144,7 +148,7 @@ end
 actions(p::Union{MLMDP,MLPOMDP}, b::BehaviorParticleBelief) = actions(p, b.physical)
 
 mutable struct BehaviorParticleUpdater <: Updater
-    problem::Nullable{NoCrashProblem}
+    problem::Union{Nothing,NoCrashProblem}
     nb_sims::Int
     p_resample_noise::Float64
     resample_noise_factor::Float64 
@@ -152,7 +156,7 @@ mutable struct BehaviorParticleUpdater <: Updater
     rng::AbstractRNG
 end
 function set_problem!(u::BehaviorParticleUpdater, p::Union{POMDP,MDP})
-    u.problem = Nullable{NoCrashProblem}(p)
+    u.problem = p
 end
 function set_rng!(u::BehaviorParticleUpdater, rng::AbstractRNG)
     u.rng = rng
@@ -166,8 +170,11 @@ function lv_resample(b::BehaviorParticleBelief, up::BehaviorParticleUpdater)
     rng = up.rng
     gen = b.gen
     min_std = 0.001*IDMMOBILBehavior(gen.max_idm-gen.min_idm, gen.max_mobil-gen.min_mobil, 0)
-    stds = max.(param_stds(b), min_std)
-    samples = Array{MLState}(n)
+    stds = param_stds(b)
+    for (i, std) in enumerate(stds)
+        stds[i] = max(std, min_std)
+    end
+    samples = Vector{MLState}(undef, n)
     nc = length(b.physical.cars)
     for m in 1:n
         cars = resize!([CarState(first(b.physical.cars), NORMAL)], nc)
@@ -204,18 +211,18 @@ function update(up::BehaviorParticleUpdater,
                 b_old::BehaviorParticleBelief,
                 a::MLAction,
                 o::MLPhysicalState,
-                b_new::BehaviorParticleBelief=BehaviorParticleBelief(get(up.problem).dmodel.behaviors, o,
-                                                    Vector{Vector{IDMMOBILBehavior}}(length(o.cars)),
-                                                    Vector{Vector{Float64}}(length(o.cars))))
+                b_new::BehaviorParticleBelief=BehaviorParticleBelief(up.problem.dmodel.behaviors, o,
+                                                    Vector{Vector{IDMMOBILBehavior}}(undef, length(o.cars)),
+                                                    Vector{Vector{Float64}}(undef, length(o.cars))))
 
-    gen = get(up.problem).dmodel.behaviors
-    particles = Vector{MLState}(up.nb_sims)
+    gen = up.problem.dmodel.behaviors
+    particles = Vector{MLState}(undef, up.nb_sims)
     samples = lv_resample(b_old, up)
     for i in 1:up.nb_sims
-        particles[i] = generate_s(get(up.problem), samples[i], a, up.rng)
+        particles[i] = @gen(:sp)(up.problem, samples[i], a, up.rng)
     end
     
-    cweights_from_particles!(b_new, get(up.problem), o, particles, up.params)
+    cweights_from_particles!(b_new, up.problem, o, particles, up.params)
 
     for i in 1:length(o.cars)
         if isempty(b_new.cweights[i])
@@ -227,13 +234,13 @@ function update(up::BehaviorParticleUpdater,
     return b_new
 end
 
-function initialize_belief(up::BehaviorParticleUpdater, distribution)
-    gen = get(up.problem).dmodel.behaviors
+function POMDPs.initialize_belief(up::BehaviorParticleUpdater, distribution)
+    gen = up.problem.dmodel.behaviors
     states = [rand(up.rng, distribution) for i in 1:up.nb_sims]
-    particles = Vector{Vector{IDMMOBILBehavior}}(length(first(states).cars))
-    weights = Vector{Vector{Float64}}(length(first(states).cars))
+    particles = Vector{Vector{IDMMOBILBehavior}}(undef, length(first(states).cars))
+    weights = Vector{Vector{Float64}}(undef, length(first(states).cars))
     for i in 1:length(first(states).cars)
-        particles[i] = Vector{IDMMOBILBehavior}(length(states))
+        particles[i] = Vector{IDMMOBILBehavior}(undef, length(states))
         weights[i] = collect(1.0:convert(Float64, up.nb_sims))./up.nb_sims
         for (j,s) in enumerate(states)
             particles[i][j] = s.cars[i].behavior
@@ -242,12 +249,12 @@ function initialize_belief(up::BehaviorParticleUpdater, distribution)
     return BehaviorParticleBelief(gen, MLPhysicalState(first(states)), particles, weights)
 end
 
-function initialize_belief(up::BehaviorParticleUpdater, physical::MLPhysicalState)
-    gen = get(up.problem).dmodel.behaviors
-    particles = Vector{Vector{IDMMOBILBehavior}}(length(physical.cars))
-    weights = Vector{Vector{Float64}}(length(physical.cars))
+function POMDPs.initialize_belief(up::BehaviorParticleUpdater, physical::MLPhysicalState)
+    gen = up.problem.dmodel.behaviors
+    particles = Vector{Vector{IDMMOBILBehavior}}(undef, length(physical.cars))
+    weights = Vector{Vector{Float64}}(undef, length(physical.cars))
     for i in 1:length(physical.cars)
-        particles[i] = Vector{IDMMOBILBehavior}(up.nb_sims)
+        particles[i] = Vector{IDMMOBILBehavior}(undef, up.nb_sims)
         weights[i] = collect(1.0:convert(Float64, up.nb_sims))./up.nb_sims
         for j in 1:up.nb_sims
             particles[i][j] = rand(up.rng, gen)

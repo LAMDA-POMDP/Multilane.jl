@@ -4,8 +4,9 @@
 using Multilane
 using MCTS
 using POMDPs
-using POMDPToolbox
-using Base.Test
+using POMDPSimulators
+using Random
+using Test
 
 #Set up problem configuration
 nb_lanes = 4
@@ -21,7 +22,7 @@ mdp = NoCrashMDP{typeof(rmodel), typeof(dmodel.behaviors)}(dmodel, rmodel, _disc
 
 rng = MersenneTwister(5)
 
-s = initial_state(mdp::NoCrashMDP, rng)
+s = rand(rng, initialstate(mdp))
 # @show s.cars[1]
 #visualize(mdp,s,MLAction(0,0))
 
@@ -67,7 +68,7 @@ pomdp = NoCrashPOMDP{typeof(rmodel), typeof(dmodel.behaviors)}(dmodel, rmodel, _
 
 rng = MersenneTwister(5)
 
-s = initial_state(mdp::NoCrashMDP, rng)
+s = rand(rng, initialstate(mdp))
 
 policy = Multilane.BehaviorPolicy(pomdp, Multilane.NORMAL, false, rng)
 
@@ -92,4 +93,3 @@ for i in 1:length(state_hist(hist))-1
     end
     @test !is_crash(mdp, state_hist(hist)[i], state_hist(hist)[i+1])
 end
-

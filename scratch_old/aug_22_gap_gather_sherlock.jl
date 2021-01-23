@@ -13,5 +13,5 @@ for i in 1:N
 end
 
 tic()
-results = @time gather_results(files, save_file=Nullable(string("results_, ", Dates.format(Dates.now(),"u_d_HH_MM"), ".jld")))
+results = @time gather_results(files, save_file=string("results_, ", Dates.format(Dates.now(),"u_d_HH_MM"), ".jld"))
 toc()

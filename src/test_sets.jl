@@ -10,7 +10,7 @@ const PP = PhysicalParam(4)
 # const NINE_BEHAVIORS = IDMMOBILBehavior[IDMMOBILBehavior(x[1],x[2],x[3],idx) for (idx,x) in
 #                                                  enumerate(Iterators.product(["cautious","normal","aggressive"],
 #                                                         [PP.v_slow+0.5;PP.v_med;PP.v_fast],
-#                                                         [PP.l_car]))]
+#                                                         [PP.l_car]))][:]
 
 const UNIFORM_MEAN = IDMMOBILBehavior(IDMParam(1.4, 2.0, 1.5, 33.3, 2.0, 4.0), MOBILParam(0.5, 2.0, 0.1), 1)
 

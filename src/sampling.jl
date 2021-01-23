@@ -22,7 +22,7 @@ end
 # """
 # function low_var_resample(rng, b::BehaviorParticleBelief, n)
 #     for 
-#     ps = Array{S}(n)
+#     ps = Vector{S}(undef, n)
 #     r = rand(rng)*last(cwts)/n
 #     c = weight(b,1)
 #     i = 1

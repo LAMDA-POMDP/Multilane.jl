@@ -2,18 +2,18 @@
 
 mutable struct MLPOMDPSolver <: Solver
     solver
-    updater::Nullable{Any}
+    updater::Union{Nothing,Any}
 end
 function set_rng!(s::MLPOMDPSolver, rng::AbstractRNG)
     set_rng!(s.solver, rng)
-    set_rng!(get(s.updater), rng)
+    set_rng!(s.updater, rng)
 end
 
 mutable struct MLPOMDPAgent <: Policy
     updater::Updater
-    previous_belief::Nullable{Any}
+    previous_belief::Union{Nothing,Any}
     policy::Policy
-    previous_action::Nullable{MLAction}
+    previous_action::Union{Nothing,MLAction}
 end
 
 function solve(solver::MLPOMDPSolver, problem::MLMDP, up=get(solver.updater, nothing))
@@ -29,10 +29,10 @@ end
 
 function action(agent::MLPOMDPAgent, state::MLState)
     o = MLPhysicalState(state)
-    if isnull(agent.previous_belief)
+    if nothing === (agent.previous_belief)
         belief = initialize_belief(agent.updater, ParticleGenerator(agent.policy.problem, state))
     else
-        belief = update(agent.updater, get(agent.previous_belief), get(agent.previous_action), o)
+        belief = update(agent.updater, agent.previous_belief, agent.previous_action, o)
     end
     a = action(agent.policy, belief)
     agent.previous_action = a

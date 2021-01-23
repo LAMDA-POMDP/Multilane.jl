@@ -7,11 +7,11 @@ mutable struct DiscreteBehaviorBelief <: BehaviorBelief
     models::AbstractVector
     weights::Vector{Vector{Float64}}
 end
-DiscreteBehaviorBelief(ps::MLPhysicalState, models::AbstractVector) = DiscreteBehaviorBelief(ps, models, Vector{Vector{Float64}}(length(ps.cars)))
+DiscreteBehaviorBelief(ps::MLPhysicalState, models::AbstractVector) = DiscreteBehaviorBelief(ps, models, Vector{Vector{Float64}}(undef, length(ps.cars)))
 
 function rand(rng::AbstractRNG,
               b::DiscreteBehaviorBelief,
-              s::MLState=MLState(b.physical, Vector{CarState}(length(b.physical.cars))))
+              s::MLState=MLState(b.physical, Vector{CarState}(undef, length(b.physical.cars))))
     s.crashed = b.physical.crashed
     resize!(s.cars, length(b.physical.cars))
     for i in 1:length(s.cars)
@@ -89,7 +89,7 @@ function update(up::BehaviorBeliefUpdater,
                 o::MLPhysicalState,
                 b_new::DiscreteBehaviorBelief=DiscreteBehaviorBelief(o,
                                                        up.problem.dmodel.behaviors,
-                                                       Vector{Vector{Float64}}(0)))
+                                                       Vector{Vector{Float64}}(undef, 0)))
     # particles = SharedArray(MLState, )
     # @parallel
     # # run simulations

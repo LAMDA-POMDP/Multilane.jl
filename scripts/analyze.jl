@@ -11,7 +11,7 @@ using DataFramesMeta
 using Plots
 using StatPlots
 
-exception = Nullable{Any}()
+exception = nothing
 
 s = ArgParseSettings()
 
@@ -161,7 +161,7 @@ if args["unicode"] || args["plot"]
     catch ex
         warn("Plot could not be displayed:")
         println(ex)
-        exception = Nullable{Any}(ex)
+        exception = ex
         # rethrow(ex)
     end
 end
@@ -172,6 +172,6 @@ if args["save-combined"]
     println("combined results saved to $filename")
 end
 
-if !isnull(exception)
-    rethrow(get(exception))
+if nothing !== (exception)
+    rethrow(exception)
 end

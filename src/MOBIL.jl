@@ -36,7 +36,7 @@ function MOBILParam(s::AbstractString)
 	#typical politeness range: [0.0,0.5]
 	typedict = Dict{AbstractString,Float64}("cautious"=>0.5,"normal"=>0.25,"aggressive"=>0.0)
 	p = get(typedict,s,-1.)
-	assert(p >= 0.)
+	@assert(p >= 0.)
 	return MOBILParam(p=p)
 end
 

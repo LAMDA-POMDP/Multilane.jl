@@ -186,7 +186,7 @@ function make_rollouts(planner, tree)
     m = planner.problem
     dt = m.dmodel.phys_param.dt
     rop = solve(SimpleSolver(), m)
-    rollouts = Vector{Any}(length(tree.sr_beliefs))
+    rollouts = Vector{Any}(undef, length(tree.sr_beliefs))
     for i in 2:length(tree.sr_beliefs)
         srb = tree.sr_beliefs[i]
         b = srb.b
@@ -250,7 +250,7 @@ end
 BEHAVIOR_COLORS = Dict{Float64,AbstractString}(0.5=>"#0101DF",0.25=>"#D7DF01",0.0=>"#FF0000")
 
 function visualize(mdp::Union{MLMDP,MLPOMDP}, s::MLState, a::MLAction, sp::MLState;
-                   idx::Nullable{Int}=Nullable{Int}())
+                   idx::Union{Nothing,Int}=nothing)
     pp = mdp.dmodel.phys_param
     roadway = gen_straight_roadway(pp.nb_lanes,
                                    pp.lane_length,
@@ -308,7 +308,7 @@ end
 
 mutable struct InfoOverlay <: SceneOverlay
     pp::PhysicalParam
-    state_index::Nullable{Int}
+    state_index::Union{Nothing,Int}
     vel::Float64
     max_braking::Float64
     iscrash::Bool
@@ -318,9 +318,9 @@ function AutoViz.render!(rm::RenderModel, o::InfoOverlay, scene::Scene, roadway:
     line_delta = 1.6
     top_line_y = -o.pp.w_lane/2.0 - line_delta
     y = top_line_y
-    if !isnull(o.state_index)
+    if nothing !== (o.state_index)
         add_instruction!(rm, render_text,
-                         ("state index: $(get(o.state_index))", 0, y, 12, colorant"white"))
+                         ("state index: $(o.state_index)", 0, y, 12, colorant"white"))
         y -= line_delta
     end
     add_instruction!(rm, render_text,

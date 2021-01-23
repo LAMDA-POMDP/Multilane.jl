@@ -11,15 +11,15 @@ using MCTS
 using JLD
 
 
-function POMCP.extract_belief(::POMDPToolbox.FastPreviousObservationUpdater{MLObs}, node::RootNode)
+function POMCP.extract_belief(::PreviousObservationUpdater, node::RootNode)
   rand(MersenneTwister(1),node.B)
 end
 
-POMCP.initialize_belief(u::FastPreviousObservationUpdater{MLObs}, o::Union{MLState,MLObs}) = o
+POMCP.initialize_belief(u::PreviousObservationUpdater, o::Union{MLState,MLObs}) = o
 
-POMCP.create_belief(u::FastPreviousObservationUpdater{MLObs}) = nothing
+POMCP.create_belief(u::PreviousObservationUpdater) = nothing
 
-POMCP.extract_belief(::POMDPToolbox.FastPreviousObservationUpdater{MLObs}, node::BeliefNode) = node.label[2]
+POMCP.extract_belief(::PreviousObservationUpdater, node::BeliefNode) = node.label[2]
 
 
 function write!(var_name::AbstractString, val::NoCrashStats, fname::AbstractString="results.jld")

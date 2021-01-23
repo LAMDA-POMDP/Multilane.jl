@@ -2,15 +2,15 @@ struct QBSolver <: Solver
     solver
 end
 
-solve(sol::QBSolver, p::Union{POMDP,MDP}) = QBPlanner(solve(sol.solver, p))
+POMDPs.solve(sol::QBSolver, p::Union{POMDP,MDP}) = QBPlanner(solve(sol.solver, p))
 
 struct QBPlanner{P<:DPWPlanner} <: Policy
     p::P
 end
 
-Base.srand(p::QBPlanner, s) = srand(p.p, s)
+srand(p::QBPlanner, s) = srand(p.p, s)
 
-function POMDPToolbox.action_info(qp::QBPlanner, b; tree_in_info=false)
+function POMDPModelTools.action_info(qp::QBPlanner, b; tree_in_info=false)
     p = qp.p
     dpw = p
     sol = p.solver
@@ -23,11 +23,11 @@ function POMDPToolbox.action_info(qp::QBPlanner, b; tree_in_info=false)
         S = state_type(p.mdp)
         A = POMDPs.action_type(p.mdp)
         tree = MCTS.DPWTree{S,A}(p.solver.n_iterations)
-        p.tree = Nullable(tree)
+        p.tree = tree
 
         banodes = Int[]
 
-        for a in iterator(actions(dpw.mdp, b))
+        for a in actions(dpw.mdp, b)
             n0 = init_N(sol.init_N, dpw.mdp, b, a)
             anode = insert_action_orphan!(tree, a, n0,
                                           init_Q(sol.init_Q, dpw.mdp, b, a),
@@ -66,7 +66,7 @@ function POMDPToolbox.action_info(qp::QBPlanner, b; tree_in_info=false)
 
             new_node = false
             if tree.n_a_children[sanode] <= sol.k_state*tree.n[sanode]^sol.alpha_state
-                sp, r = generate_sr(dpw.mdp, s, a, dpw.rng)
+                sp, r = @gen(:sp,:r)(dpw.mdp, s, a, dpw.rng)
 
                 spnode = sol.check_repeat_state ? get(tree.s_lookup, sp, 0) : 0
 
@@ -126,9 +126,9 @@ function POMDPToolbox.action_info(qp::QBPlanner, b; tree_in_info=false)
     return a, info
 end
 
-action(p::QBPlanner, b) = first(action_info(p, b))
+POMDPs.action(p::QBPlanner, b) = first(action_info(p, b))
 
-function insert_action_orphan!{S,A}(tree::MCTS.DPWTree{S,A}, a::A, n0::Int, q0::Float64, maintain_a_lookup=true)
+function insert_action_orphan!(tree::MCTS.DPWTree{S,A}, a::A, n0::Int, q0::Float64, maintain_a_lookup=true) where {S,A}
     push!(tree.n, n0)
     push!(tree.q, q0)
     push!(tree.a_labels, a)
@@ -138,5 +138,3 @@ function insert_action_orphan!{S,A}(tree::MCTS.DPWTree{S,A}, a::A, n0::Int, q0::
     @assert !maintain_a_lookup # not supported
     return sanode
 end
-
-

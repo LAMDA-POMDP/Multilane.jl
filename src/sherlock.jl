@@ -71,7 +71,7 @@ function sbatch_spawn(tests::AbstractVector, objects::Dict;
     return results_file_list
 end
 
-function gather_results(results_file_list; save_file::Nullable=Nullable())
+function gather_results(results_file_list; save_file::Union{Nothing,String}=nothing)
     results = JLD.load(first(results_file_list))
     stats = results["stats"]
     for (i,f) in enumerate(results_file_list[2:end])
@@ -91,8 +91,8 @@ function gather_results(results_file_list; save_file::Nullable=Nullable())
     end
     println()
     # results["stats"] = stats
-    if !isnull(save_file)
-        JLD.save(get(save_file), results)
+    if nothing !== (save_file)
+        JLD.save(save_file, results)
     end
     return results
 end

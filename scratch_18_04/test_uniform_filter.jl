@@ -65,7 +65,7 @@ errors = Array{IDMMOBILBehavior}(T, max_id-1)
 fill!(errors, nan(IDMMOBILBehavior))
 stds = Array{IDMMOBILBehavior}(T, max_id-1)
 fill!(stds, nan(IDMMOBILBehavior))
-average_error = Array{IDMMOBILBehavior}(T)
+average_error = Vector{IDMMOBILBehavior}(undef, T)
 
 for i in 1:T
     b = bh[i]

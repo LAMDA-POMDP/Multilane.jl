@@ -11,16 +11,16 @@ Simple(mdp) = Simple(mdp,true)
 solve(solver::SimpleSolver, problem::MDP) = Simple(problem)
 solve(solver::SimpleSolver, problem::EmbeddedBehaviorMDP) = Simple(problem.base)
 solve(solver::SimpleSolver, problem::POMDP) = Simple(problem)
-solve(solver::SimpleSolver, problem::AggressivenessBeliefMDP) = Simple(get(problem.up.problem))
-solve(solver::SimpleSolver, problem::BehaviorBeliefMDP) = Simple(get(problem.up.problem))
+solve(solver::SimpleSolver, problem::AggressivenessBeliefMDP) = Simple(problem.up.problem)
+solve(solver::SimpleSolver, problem::BehaviorBeliefMDP) = Simple(problem.up.problem)
 solve(solver::SimpleSolver, problem::QMDPWrapper) = Simple(problem.mdp)
 solve(solver::SimpleSolver, problem::OutcomeMDP) = Simple(problem.mdp)
-POMDPs.updater(::Simple) = POMDPToolbox.FastPreviousObservationUpdater{MLObs}()
+POMDPs.updater(::Simple) = PreviousObservationUpdater()
 create_policy(s::SimpleSolver, problem::MDP) = Simple(problem)
 create_policy(s::SimpleSolver, problem::POMDP) = Simple(problem)
 
 set_rng!(solver::SimpleSolver, rng::AbstractRNG) = nothing
-Base.srand(p::Simple, s) = p
+srand(p::Simple, s) = p
 
 function action(p::Simple,s::Union{MLState,MLObs})
 # lane changes if there is an opportunity
@@ -58,9 +58,9 @@ end
 action(p::Simple, b::BehaviorBelief) = action(p, b.physical)
 function action(pol::Simple, s::QMDPState)
     if s.isstate
-        return action(pol, get(s.s))
+        return action(pol, s.s)
     else
-        return action(pol, get(s.b))
+        return action(pol, s.b)
     end
 end
 action(p::Simple, b::AbstractParticleBelief) = action(p, MLPhysicalState(first(particles(b))))

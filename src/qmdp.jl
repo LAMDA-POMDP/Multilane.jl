@@ -1,14 +1,14 @@
 # redundant
 struct QMDPState{B,S}
     isstate::Bool
-    b::Nullable{B}
-    s::Nullable{S}
+    b::Union{Nothing,B}
+    s::Union{Nothing,S}
 
     function QMDPState{B,S}(isstate::Bool, x) where {B,S}
         if isstate
-            return new(isstate, Nullable{B}(), Nullable(x))
+            return new(isstate, nothing, x)
         else
-            return new(isstate, Nullable(x), Nullable{S}())
+            return new(isstate, x, nothing)
         end
     end
 end
@@ -26,31 +26,30 @@ end
 state(m::QMDPWrapper{<:Any,B,S,<:Any}, s::S) where {B,S} = QMDPState{B,S}(true, s)
 state(m::QMDPWrapper{<:Any,B,S,<:Any}, b::B) where {B,S} = QMDPState{B,S}(false, b)
 
-function isterminal(m::QMDPWrapper, s::QMDPState)
+function POMDPs.isterminal(m::QMDPWrapper, s::QMDPState)
     if s.isstate
-        return isterminal(m, get(s.s))
+        return isterminal(m, s.s)
     else
-        return isterminal(m, get(s.b))
+        return isterminal(m, s.b)
     end
 end
 
-function generate_sr(m::QMDPWrapper, s::QMDPState, a, rng::AbstractRNG)
+function POMDPs.gen(m::QMDPWrapper, s::QMDPState, a, rng::AbstractRNG)
     if s.isstate
-        sp, r = generate_sr(m.mdp, get(s.s), a, rng)
-        return state_type(m)(true, sp), r
+        sp, r = @gen(:sp,:r)(m.mdp, s.s, a, rng)
     else
-        sp, r = generate_sr(m.mdp, rand(rng, get(s.b)), a, rng)
-        return state_type(m)(true, sp), r
+        sp, r = @gen(:sp,:r)(m.mdp, rand(rng, s.b), a, rng)
     end
+    return (sp=state_type(m)(true, sp), r=r)
 end
 
-discount(m::QMDPWrapper) = discount(m.mdp)
-function actions(m::QMDPWrapper, s::QMDPState)
+POMDPs.discount(m::QMDPWrapper) = discount(m.mdp)
+function POMDPs.actions(m::QMDPWrapper, s::QMDPState)
     if s.isstate
-        return actions(m.mdp, get(s.s))
+        return actions(m.mdp, s.s)
     else
-        # Gallium.@enter actions(m.mdp, get(s.b))
-        return actions(m.mdp, get(s.b))
+        # Gallium.@enter actions(m.mdp, s.b)
+        return actions(m.mdp, s.b)
     end
 end
 
@@ -63,12 +62,12 @@ struct GenQMDPPolicy{P<:Policy, Q<:QMDPWrapper} <: Policy
     qmdp::Q
 end
 
-solve(sol::GenQMDPSolver, qmdp::QMDPWrapper) = GenQMDPPolicy(solve(sol.solver, qmdp), qmdp)
+POMDPs.solve(sol::GenQMDPSolver, qmdp::QMDPWrapper) = GenQMDPPolicy(solve(sol.solver, qmdp), qmdp)
 
-function action_info(p::GenQMDPPolicy, b)
+function POMDPModelTools.action_info(p::GenQMDPPolicy, b)
     # XXX if this ever makes it into the toolbox, need to get the mdp some other way
     s = QMDPState{typeof(b), state_type(p.qmdp.mdp)}(false, b)
     return action_info(p.policy, s)
 end
 
-action(p::GenQMDPPolicy, b) = first(action_info(p, b))
+POMDPs.action(p::GenQMDPPolicy, b) = first(action_info(p, b))

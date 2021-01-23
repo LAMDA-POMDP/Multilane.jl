@@ -11,7 +11,7 @@ mutable struct SingleBehaviorPolicy <: Policy
 end
 
 set_rng!(solver::SingleBehaviorSolver, rng::AbstractRNG) = set_rng!(solver.inner_solver, rng)
-Base.srand(p::SingleBehaviorPolicy, s) = srand(p.inner_policy, s)
+srand(p::SingleBehaviorPolicy, s) = srand(p.inner_policy, s)
 
 function solve(solver::SingleBehaviorSolver, mdp::NoCrashProblem)
     dmodel = NoCrashIDMMOBILModel(mdp.dmodel, DiscreteBehaviorSet(BehaviorModel[solver.behavior], Weights([1.0])))
@@ -34,7 +34,7 @@ action_info(p::SingleBehaviorPolicy, agg::AggressivenessBelief) = action_info(p,
 action(p::SingleBehaviorPolicy, s) = first(action_info(p, s))
 
 function single_behavior_state(s::Union{MLState, MLPhysicalState}, behavior)
-    new_cars = Vector{CarState}(length(s.cars))
+    new_cars = Vector{CarState}(undef, length(s.cars))
     for (i,c) in enumerate(s.cars)
         new_cars[i] = CarState(c.x, c.y, c.vel, c.lane_change, behavior, c.id)
     end

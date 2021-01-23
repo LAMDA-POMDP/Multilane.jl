@@ -2,7 +2,7 @@
 #a separate file for all the crashing stuff
 
 function cross2d(x::Array{Float64,1},y::Array{Float64,1})
-	assert(length(x) == length(y))
+	@assert length(x) == length(y)
 	if length(x) == 3
 		return cross(x,y)
 	elseif length(x) != 2
@@ -105,7 +105,7 @@ end
 function is_crash(mdp::Union{MLMDP{MLState,MLAction},MLPOMDP{MLState,MLAction}}, s::MLState, sp::MLState, debug::Bool=false; warning::Bool=false)
 	pp = mdp.dmodel.phys_param
 	dt = pp.dt
-  nb_col = 2*pp.nb_lanes-1
+	nb_col = 2*pp.nb_lanes-1
 	agent_pos = s.cars[1].x#pp.lane_length/2.
 	agent_y = s.cars[1].y*pp.w_lane
 	agent_vel = s.cars[1].vel

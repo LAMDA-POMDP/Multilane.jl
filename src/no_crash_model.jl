@@ -43,7 +43,7 @@ function NoCrashIDMMOBILModel(nb_cars::Int,
                               behaviors=DiscreteBehaviorSet(IDMMOBILBehavior[IDMMOBILBehavior(x[1],x[2],x[3],idx) for (idx,x) in
                                                  enumerate(Iterators.product(["cautious","normal","aggressive"],
                                                         [pp.v_slow+0.5;pp.v_med;pp.v_fast],
-                                                        [pp.l_car]))], Weights(ones(9)))
+                                                        [pp.l_car]))][:], Weights(ones(9)))
                               )
 
     return NoCrashIDMMOBILModel(
@@ -78,7 +78,7 @@ gen_type(::Type{MLPOMDP{S,A,O,NoCrashIDMMOBILModel{G},R}}) where {S,A,O,G,R} = G
 # action space = {a in {accelerate,maintain,decelerate}x{left_lane_change,maintain,right_lane_change} | a is safe} U {brake}
 struct NoCrashActionSpace
     NORMAL_ACTIONS::Vector{MLAction} # all the actions except brake
-    acceptable::IntSet
+    acceptable::Set{Int}
     brake::MLAction # this action will be EITHER braking at half the dangerous brake threshold OR the braking necessary to prevent a collision at all time in the future
 end
 
@@ -87,13 +87,13 @@ const NB_NORMAL_ACTIONS = 9
 function NoCrashActionSpace(mdp::NoCrashProblem)
     accels = (-mdp.dmodel.adjustment_acceleration, 0.0, mdp.dmodel.adjustment_acceleration)
     lane_changes = (-mdp.dmodel.lane_change_rate, 0.0, mdp.dmodel.lane_change_rate)
-    NORMAL_ACTIONS = MLAction[MLAction(a,l) for (a,l) in Iterators.product(accels, lane_changes)] # this should be in the problem
-    return NoCrashActionSpace(NORMAL_ACTIONS, IntSet(), MLAction()) # note: brake will be calculated later based on the state
+    NORMAL_ACTIONS = MLAction[MLAction(a,l) for (a,l) in Iterators.product(accels, lane_changes)][:] # this should be in the problem
+    return NoCrashActionSpace(NORMAL_ACTIONS, Set{Int}(), MLAction()) # note: brake will be calculated later based on the state
 end
 
-function actions(mdp::NoCrashProblem, s::Union{MLState, MLPhysicalState})
+function POMDPs.actions(mdp::NoCrashProblem, s::Union{MLState, MLPhysicalState})
     as = NoCrashActionSpace(mdp)
-    acceptable = IntSet()
+    acceptable = Set{Int}()
     for i in 1:NB_NORMAL_ACTIONS
         a = as.NORMAL_ACTIONS[i]
         ego_y = s.cars[1].y
@@ -111,23 +111,25 @@ function actions(mdp::NoCrashProblem, s::Union{MLState, MLPhysicalState})
     return NoCrashActionSpace(as.NORMAL_ACTIONS, acceptable, brake)
 end
 
-actions(mdp::NoCrashProblem, b::AbstractParticleBelief) = actions(mdp, MLPhysicalState(first(particles(b))))
+POMDPs.actions(mdp::NoCrashProblem, b::AbstractParticleBelief) = actions(mdp, MLPhysicalState(first(particles(b))))
 
 calc_brake_acc(mdp::NoCrashProblem, s::Union{MLState, MLPhysicalState}) = min(max_safe_acc(mdp,s), -mdp.rmodel.brake_penalty_thresh/2.0)
 # calc_brake_acc(mdp::NoCrashProblem{TargetLaneReward}, s::Union{MLState, MLPhysicalState}) = min(max_safe_acc(mdp, s), min(-mdp.dmodel.phys_param.brake_limit/2, -mdp.dmodel.brake_terminate_thresh/2))
 
-iterator(as::NoCrashActionSpace) = as
-Base.start(as::NoCrashActionSpace) = 1
-function Base.next(as::NoCrashActionSpace, state::Integer)
+function Base.iterate(as::NoCrashActionSpace, state::Integer)
     while !(state in as.acceptable)
         if state > NB_NORMAL_ACTIONS
-            return (as.brake, state+1)
+            if state > NB_NORMAL_ACTIONS + 1
+                return nothing
+            else
+                return (as.brake, state+1)
+            end
         end
         state += 1
     end
     return (as.NORMAL_ACTIONS[state], state+1)
 end
-Base.done(as::NoCrashActionSpace, state::Integer) = state > NB_NORMAL_ACTIONS+1
+Base.iterate(as::NoCrashActionSpace) = iterate(as, 1)
 Base.length(as::NoCrashActionSpace) = length(as.acceptable) + 1
 
 function rand(rng::AbstractRNG, as::NoCrashActionSpace, a::MLAction=MLAction())
@@ -183,7 +185,7 @@ function max_safe_acc(gap, v_behind, v_ahead, braking_limit, dt)
     vo = v_ahead
     g = gap
     # VVV see mathematica notebook
-    return - (bp*dt + 2.*v - sqrt(8.*g*bp + bp^2*dt^2 - 4.*bp*dt*v + 4.*vo^2)) / (2.*dt)
+    return - (bp*dt + 2 .* v - sqrt(8 .* g*bp + bp^2*dt^2 - 4 .* bp*dt*v + 4 .* vo^2)) / (2 .* dt)
 end
 
 """
@@ -195,11 +197,11 @@ function nullable_max_safe_acc(gap, v_behind, v_ahead, braking_limit, dt)
     vo = v_ahead
     g = gap
     # VVV see mathematica notebook
-    discriminant = 8.*g*bp + bp^2*dt^2 - 4.*bp*dt*v + 4.*vo^2
+    discriminant = 8 .* g*bp + bp^2*dt^2 - 4 .* bp*dt*v + 4 .* vo^2
     if discriminant >= 0.0
-        return Nullable{Float64}(- (bp*dt + 2.*v - sqrt(discriminant)) / (2.*dt))
+        return - (bp*dt + 2 .* v - sqrt(discriminant)) / (2 .* dt)
     else
-        return Nullable{Float64}()
+        return nothing
     end
 end
 
@@ -230,8 +232,8 @@ function is_safe(mdp::NoCrashProblem, s::Union{MLState,MLObs}, a::MLAction)
                 end
                 n_braking_acc = nullable_max_safe_acc(gap, car.vel, ego.vel, mdp.dmodel.phys_param.brake_limit, dt)
 
-                # if isnull(n_braking_acc) || get(n_braking_acc) < -mdp.dmodel.phys_param.brake_limit
-                if isnull(n_braking_acc) || get(n_braking_acc) < max_accel(mdp.dmodel.behaviors)
+                # if nothing === (n_braking_acc) || n_braking_acc < -mdp.dmodel.phys_param.brake_limit
+                if nothing === (n_braking_acc) || n_braking_acc < max_accel(mdp.dmodel.behaviors)
                     return false
                 end
             end
@@ -241,318 +243,321 @@ function is_safe(mdp::NoCrashProblem, s::Union{MLState,MLObs}, a::MLAction)
 end
 
 #XXX temp
-create_state(p::NoCrashProblem) = MLState(0.0, 0.0, Vector{CarState}(p.dmodel.nb_cars), nothing)
-create_observation(pomdp::NoCrashPOMDP) = MLObs(0.0, 0.0, Vector{CarStateObs}(pomdp.dmodel.nb_cars), nothing)
+create_state(p::NoCrashProblem) = MLState(0.0, 0.0, Vector{CarState}(undef, p.dmodel.nb_cars), nothing)
+create_observation(pomdp::NoCrashPOMDP) = MLObs(0.0, 0.0, Vector{CarStateObs}(undef, pomdp.dmodel.nb_cars), nothing)
 
-function generate_s(mdp::NoCrashProblem, s::MLState, a::MLAction, rng::AbstractRNG)
+function POMDPs.transition(mdp::NoCrashProblem, s::MLState, a::MLAction)
 
-    @if_debug dbg_rng = copy(rng)
+    ImplicitDistribution(s, a) do s, a, rng
+        @if_debug dbg_rng = copy(rng)
 
-    sp::MLState=create_state(mdp)
+        sp=create_state(mdp)::MLState
 
-    try
-        pp = mdp.dmodel.phys_param
-        dt = pp.dt
-        nb_cars = length(s.cars)
-        resize!(sp.cars, nb_cars)
-        sp.terminal = s.terminal
-        sp.t = s.t + dt
+        try
+            pp = mdp.dmodel.phys_param
+            dt = pp.dt
+            nb_cars = length(s.cars)
+            resize!(sp.cars, nb_cars)
+            sp.terminal = s.terminal
+            sp.t = s.t + dt
 
-        ## Calculate deltas ##
-        #====================#
+            ## Calculate deltas ##
+            #====================#
 
-        dxs = Vector{Float64}(nb_cars)
-        dvs = Vector{Float64}(nb_cars)
-        dys = Vector{Float64}(nb_cars)
-        lcs = Vector{Float64}(nb_cars)
+            dxs = Vector{Float64}(undef, nb_cars)
+            dvs = Vector{Float64}(undef, nb_cars)
+            dys = Vector{Float64}(undef, nb_cars)
+            lcs = Vector{Float64}(undef, nb_cars)
 
-        # agent
-        dvs[1] = a.acc*dt
-        dxs[1] = s.cars[1].vel*dt + a.acc*dt^2/2.
-        lcs[1] = a.lane_change
-        dys[1] = a.lane_change*dt
+            # agent
+            dvs[1] = a.acc*dt
+            dxs[1] = s.cars[1].vel*dt + a.acc*dt^2/2.
+            lcs[1] = a.lane_change
+            dys[1] = a.lane_change*dt
 
-        for i in 2:nb_cars
-            neighborhood = get_neighborhood(pp, s, i)
+            for i in 2:nb_cars
+                neighborhood = get_neighborhood(pp, s, i)
 
-            behavior = s.cars[i].behavior
+                behavior = s.cars[i].behavior
 
-            acc = gen_accel(behavior, mdp.dmodel, s, neighborhood, i, rng)
-            dvs[i] = dt*acc
-            dxs[i] = (s.cars[i].vel + dvs[i]/2.)*dt
+                acc = gen_accel(behavior, mdp.dmodel, s, neighborhood, i, rng)
+                dvs[i] = dt*acc
+                dxs[i] = (s.cars[i].vel + dvs[i]/2.)*dt
 
-            lcs[i] = gen_lane_change(behavior, mdp.dmodel, s, neighborhood, i, rng)
-            dys[i] = lcs[i] * dt
-        end
-
-        ## Consistency checking ##
-        #========================#
-
-        # first prevent lane changes into each other
-        changers = IntSet()
-        for i in 1:nb_cars
-            if lcs[i] != 0
-                push!(changers, i)
+                lcs[i] = gen_lane_change(behavior, mdp.dmodel, s, neighborhood, i, rng)
+                dys[i] = lcs[i] * dt
             end
-        end
-        sorted_changers = sort!(collect(changers), by=i->s.cars[i].x, rev=true) # this might be slow because anonymous functions are slow
-        # from front to back
 
-        if length(sorted_changers) >= 2 #something to compare
-            # iterate through pairs
-            iter_state = start(sorted_changers)
-            j, iter_state = next(sorted_changers, iter_state)
-            while !done(sorted_changers, iter_state)
-                i = j
-                j, iter_state = next(sorted_changers, iter_state)
-                car_i = s.cars[i] # front
-                car_j = s.cars[j] # back
+            ## Consistency checking ##
+            #========================#
 
-                # check if they are both starting to change lanes on this step
-                if isinteger(car_i.y) && isinteger(car_j.y)
-
-                    # check if they are near each other lanewise
-                    if abs(car_i.y - car_j.y) <= 2.0
-
-                        # make sure there is a conflict longitudinally
-                        # if car_i.x - car_j.x <= pp.l_car || car_i.x + dxs[i] - car_j.x + dxs[j] <= pp.l_car
-                        # if car_i.x - car_j.x <= mdp.dmodel.appear_clearance # made more conservative on 8/19
-                        # if car_i.x - car_j.x <= get_idm_s_star(car_j.behavior.p_idm, car_j.vel, car_j.vel-car_i.vel) # upgraded to sstar on 8/19
-                        ivp = car_i.vel + dt*dvs[i]
-                        jvp = car_j.vel + dt*dvs[j]
-                        ixp = car_i.x + dt*(car_i.vel + ivp)/2.0
-                        jxp = car_j.x + dt*(car_j.vel + jvp)/2.0
-                        n_max_acc_p = nullable_max_safe_acc(ixp-jxp-pp.l_car, jvp, ivp, pp.brake_limit,dt)
-                        if ixp - jxp <= pp.l_car || car_i.x - car_j.x <= pp.l_car || isnull(n_max_acc_p) || get(n_max_acc_p) < -pp.brake_limit
-
-                            # check if they are moving towards each other
-                            # if dys[i]*dys[j] < 0.0 && abs(car_i.y+dys[i] - car_j.y+dys[j]) < 2.0
-                            if true # prevent lockstepping 8/19 (doesn't prevent it that well)
-
-                                # make j stay in his lane
-                                dys[j] = 0.0
-                                lcs[j] = 0.0
-                            end
-                        end
-                    end
+            # first prevent lane changes into each other
+            changers = Set{Int}()
+            for i in 1:nb_cars
+                if lcs[i] != 0
+                    push!(changers, i)
                 end
             end
-        end
+            sorted_changers = sort!(collect(changers), by=i->s.cars[i].x, rev=true) # this might be slow because anonymous functions are slow
+            # from front to back
 
-        # second, prevent cars hitting each other due to noise
-        if mdp.throw
-            # sorted = sort!(collect(1:length(s.cars)), by=i->s.cars[i].x, rev=true)
-            sorted = sortperm(collect(c.x for c in s.cars), rev=true)
-
-            if length(sorted) >= 2 #something to compare
+            if length(sorted_changers) >= 2 #something to compare
                 # iterate through pairs
-                iter_state = start(sorted)
-                j, iter_state = next(sorted, iter_state)
-                while !done(sorted, iter_state)
-                    i = j
-                    j, iter_state = next(sorted, iter_state)
-                    if j == 1
-                        continue # don't check for the ego since the ego does not have noise
-                    end
-                    car_i = s.cars[i]
-                    car_j = s.cars[j]
+                i = first(sorted_changers)
+                for j in sorted_changers[2:end]
+                    car_i = s.cars[i] # front
+                    car_j = s.cars[j] # back
 
-                    # check if they overlap longitudinally
-                    if car_j.x + dxs[j] > car_i.x + dxs[i] - pp.l_car
-                    
-                        # check if they will be in the same lane
-                        if occupation_overlap(car_i.y + dys[i], car_j.y + dys[j])
-                            # warn and nudge behind
-                            if mdp.throw
-                                @show car_j.x
-                                @show car_i.x
-                                @show car_j.x + dxs[j]
-                                @show car_i.x + dxs[i]
-                                @show pp.l_car
-                            end
-                            @if_debug begin
-                                println("Conflict because of noise: front:$i, back:$j")
-                                # Gallium.@enter generate_s(mdp, s, a, dbg_rng)
-                                fname = tempname()*".jld"
-                                println("saving debug args to $fname")
-                                JLD.@save(fname, mdp, s, a, dbg_rng)
-                            end
-                            if i == 1
-                                if mdp.throw
-                                    error("Car nudged because of crash (ego in front).")
-                                end
-                            else
-                                # warn("Car nudged because noise would cause a crash.")
-                                if mdp.throw
-                                    error("Car nudged because of crash.")
+                    # check if they are both starting to change lanes on this step
+                    if isinteger(car_i.y) && isinteger(car_j.y)
+
+                        # check if they are near each other lanewise
+                        if abs(car_i.y - car_j.y) <= 2.0
+
+                            # make sure there is a conflict longitudinally
+                            # if car_i.x - car_j.x <= pp.l_car || car_i.x + dxs[i] - car_j.x + dxs[j] <= pp.l_car
+                            # if car_i.x - car_j.x <= mdp.dmodel.appear_clearance # made more conservative on 8/19
+                            # if car_i.x - car_j.x <= get_idm_s_star(car_j.behavior.p_idm, car_j.vel, car_j.vel-car_i.vel) # upgraded to sstar on 8/19
+                            ivp = car_i.vel + dt*dvs[i]
+                            jvp = car_j.vel + dt*dvs[j]
+                            ixp = car_i.x + dt*(car_i.vel + ivp)/2.0
+                            jxp = car_j.x + dt*(car_j.vel + jvp)/2.0
+                            n_max_acc_p = nullable_max_safe_acc(ixp-jxp-pp.l_car, jvp, ivp, pp.brake_limit,dt)
+                            if ixp - jxp <= pp.l_car || car_i.x - car_j.x <= pp.l_car || nothing === (n_max_acc_p) || n_max_acc_p < -pp.brake_limit
+
+                                # check if they are moving towards each other
+                                # if dys[i]*dys[j] < 0.0 && abs(car_i.y+dys[i] - car_j.y+dys[j]) < 2.0
+                                if true # prevent lockstepping 8/19 (doesn't prevent it that well)
+
+                                    # make j stay in his lane
+                                    dys[j] = 0.0
+                                    lcs[j] = 0.0
                                 end
                             end
-                            dxs[j] = car_i.x + dxs[i] - car_j.x - 1.01*pp.l_car
-                            dvs[j] = 2.0*(dxs[j]/dt - car_j.vel)
                         end
                     end
-                end
-            end
-        end
-
-        ## Dynamics and Exits ##
-        #======================#
-
-        exits = IntSet()
-        for i in 1:nb_cars
-            car = s.cars[i]
-            xp = car.x + (dxs[i] - dxs[1])
-            yp = car.y + dys[i]
-            # velp = max(min(car.vel + dvs[i],pp.v_max), pp.v_min)
-            velp = max(car.vel + dvs[i], 0.0) # removed speed limits on 8/13
-            # note lane change is updated above
-
-            if velp < mdp.dmodel.speed_terminate_thresh
-                sp.terminal = Nullable{Symbol}(:speed)
-            end
-            if dvs[i]/dt < -mdp.dmodel.brake_terminate_thresh
-                sp.terminal = Nullable{Symbol}(:brake)
-            end
-
-            # check if a lane was crossed and snap back to it
-            if isinteger(car.y)
-                # prevent a multi-lane change in a single timestep
-                if abs(yp-car.y) > 1.
-                    yp = car.y + sign(dys[i])
-                end
-            else # car.y is not an integer
-                if floor(yp) >= ceil(car.y)
-                    yp = ceil(car.y)
-                end
-                if ceil(yp) <= floor(car.y)
-                    yp = floor(car.y)
+                    i = j
                 end
             end
 
-            # if yp < 1.0 || yp > pp.nb_lanes
-            #     @show i
-            #     @show yp
-            #     println("mdp = $mdp")
-            #     println("s = $s")
-            #     println("a = $a")
-            # end
-            @assert yp >= 1.0 && yp <= pp.nb_lanes
+            # second, prevent cars hitting each other due to noise
+            if mdp.throw
+                # sorted = sort!(collect(1:length(s.cars)), by=i->s.cars[i].x, rev=true)
+                sorted = sortperm(collect(c.x for c in s.cars), rev=true)
 
-            if xp < 0.0 || xp >= pp.lane_length
-                push!(exits, i)
-            else
-                sp.cars[i] = CarState(xp, yp, velp, lcs[i], car.behavior, s.cars[i].id)
-            end
-        end
+                if length(sorted) >= 2 #something to compare
+                    # iterate through pairs
+                    i = first(sorted)
+                    for j in sorted[2:end]
+                        if j == 1
+                            continue # don't check for the ego since the ego does not have noise
+                        end
+                        car_i = s.cars[i]
+                        car_j = s.cars[j]
 
-        sp.x = s.x + dxs[1]
-
-        next_id = maximum([c.id for c in s.cars]) + 1
-
-        deleteat!(sp.cars, exits)
-        nb_cars -= length(exits)
-
-        ## Generate new cars ##
-        #=====================#
-
-        if nb_cars < mdp.dmodel.nb_cars && rand(rng) <= mdp.dmodel.p_appear
-
-            behavior = rand(rng, mdp.dmodel.behaviors)
-            vel = typical_velocity(behavior) + randn(rng)*mdp.dmodel.vel_sigma
-
-            clearances = Vector{Float64}(pp.nb_lanes)
-            fill!(clearances, Inf)
-            closest_cars = Vector{Int}(pp.nb_lanes)
-            fill!(closest_cars, 0)
-            sstar_margins = Vector{Float64}(pp.nb_lanes)
-            if vel > sp.cars[1].vel
-                # put at back
-                # sstar is the sstar of the new guy
-                for i in 1:length(sp.cars)
-                    lowlane, highlane = occupation_lanes(sp.cars[i].y, 0.0)
-                    back = sp.cars[i].x - pp.l_car
-                    if back < clearances[lowlane]
-                        clearances[lowlane] = back
-                        closest_cars[lowlane] = i
+                        # check if they overlap longitudinally
+                        if car_j.x + dxs[j] > car_i.x + dxs[i] - pp.l_car
+                        
+                            # check if they will be in the same lane
+                            if occupation_overlap(car_i.y + dys[i], car_j.y + dys[j])
+                                # warn and nudge behind
+                                if mdp.throw
+                                    @show car_j.x
+                                    @show car_i.x
+                                    @show car_j.x + dxs[j]
+                                    @show car_i.x + dxs[i]
+                                    @show pp.l_car
+                                end
+                                @if_debug begin
+                                    println("Conflict because of noise: front:$i, back:$j")
+                                    # Gallium.@enter @gen(:sp)(mdp, s, a, dbg_rng)
+                                    fname = tempname()*".jld"
+                                    println("saving debug args to $fname")
+                                    JLD.@save(fname, mdp, s, a, dbg_rng)
+                                end
+                                if i == 1
+                                    if mdp.throw
+                                        error("Car nudged because of crash (ego in front).")
+                                    end
+                                else
+                                    # warn("Car nudged because noise would cause a crash.")
+                                    if mdp.throw
+                                        error("Car nudged because of crash.")
+                                    end
+                                end
+                                dxs[j] = car_i.x + dxs[i] - car_j.x - 1.01*pp.l_car
+                                dvs[j] = 2.0*(dxs[j]/dt - car_j.vel)
+                            end
+                        end
+                        i = j
                     end
-                    if back < clearances[highlane]
-                        clearances[highlane] = back
-                        closest_cars[highlane] = i
-                    end
-                end
-                for j in 1:pp.nb_lanes
-                    other = closest_cars[j]
-                    if other == 0
-                        sstar = 0.0
-                    else
-                        sstar = get_idm_s_star(behavior.p_idm::IDMParam, vel, vel-sp.cars[other].vel::Float64)
-                    end
-                    sstar_margins[j] = clearances[j] - sstar
-                end
-            else
-                for i in 1:length(sp.cars)
-                    lowlane, highlane = occupation_lanes(sp.cars[i].y, 0.0)
-                    front = pp.lane_length - (sp.cars[i].x + pp.l_car) # l_car is half the length of the old car plus half the length of the new one
-                    if front < clearances[lowlane]
-                        clearances[lowlane] = front
-                        closest_cars[lowlane] = i
-                    end
-                    if front < clearances[highlane]
-                        clearances[highlane] = front
-                        closest_cars[highlane] = i
-                    end
-                end
-                for j in 1:pp.nb_lanes
-                    other = closest_cars[j]
-                    if other == 0
-                        sstar = 0
-                    else
-                        sstar = get_idm_s_star(sp.cars[other].behavior.p_idm,
-                                               sp.cars[other].vel,
-                                               sp.cars[other].vel-vel)
-                    end
-                    sstar_margins[j] = clearances[j] - sstar
                 end
             end
 
-            margin, lane = findmax(sstar_margins)
-            
-            if margin > 0.0
-                if vel > sp.cars[1].vel
-                    # at back
-                    push!(sp.cars, CarState(0.0, lane, vel, 0.0, behavior, next_id))
+            ## Dynamics and Exits ##
+            #======================#
+
+            exits = Set{Int}()
+            for i in 1:nb_cars
+                car = s.cars[i]
+                xp = car.x + (dxs[i] - dxs[1])
+                yp = car.y + dys[i]
+                # velp = max(min(car.vel + dvs[i],pp.v_max), pp.v_min)
+                velp = max(car.vel + dvs[i], 0.0) # removed speed limits on 8/13
+                # note lane change is updated above
+
+                if velp < mdp.dmodel.speed_terminate_thresh
+                    sp.terminal = :speed
+                end
+                if dvs[i]/dt < -mdp.dmodel.brake_terminate_thresh
+                    sp.terminal = :brake
+                end
+
+                # check if a lane was crossed and snap back to it
+                if isinteger(car.y)
+                    # prevent a multi-lane change in a single timestep
+                    if abs(yp-car.y) > 1.
+                        yp = car.y + sign(dys[i])
+                    end
+                else # car.y is not an integer
+                    if floor(yp) >= ceil(car.y)
+                        yp = ceil(car.y)
+                    end
+                    if ceil(yp) <= floor(car.y)
+                        yp = floor(car.y)
+                    end
+                end
+
+                # if yp < 1.0 || yp > pp.nb_lanes
+                #     @show i
+                #     @show yp
+                #     println("mdp = $mdp")
+                #     println("s = $s")
+                #     println("a = $a")
+                # end
+                @assert yp >= 1.0 && yp <= pp.nb_lanes
+
+                if xp < 0.0 || xp >= pp.lane_length
+                    push!(exits, i)
                 else
-                    push!(sp.cars, CarState(pp.lane_length, lane, vel, 0.0, behavior, next_id))
+                    sp.cars[i] = CarState(xp, yp, velp, lcs[i], car.behavior, s.cars[i].id)
                 end
             end
-        end
 
-        if sp.x > mdp.dmodel.max_dist
-            sp.terminal = Nullable{Any}(:distance)
-        elseif mdp.dmodel.lane_terminate && sp.cars[1].y == mdp.rmodel.target_lane
-            sp.terminal = Nullable{Any}(:lane)
-        end
+            sp.x = s.x + dxs[1]
 
-        @assert sp.cars[1].x == s.cars[1].x # ego should not move
-        @if_debug begin
-            if any(any(isnan.(c.behavior.p_idm)) for c in sp.cars)
-                warn("NaN in idm.")
+            next_id = maximum([c.id for c in s.cars]) + 1
+
+            exits = sort([exits...])
+            num_exit = 0
+            for exit in exits
+                deleteat!(sp.cars, exit-num_exit)
+                num_exit += 1
+            end
+            nb_cars -= num_exit
+
+            ## Generate new cars ##
+            #=====================#
+
+            if nb_cars < mdp.dmodel.nb_cars && rand(rng) <= mdp.dmodel.p_appear
+
+                behavior = rand(rng, mdp.dmodel.behaviors)
+                vel = typical_velocity(behavior) + randn(rng)*mdp.dmodel.vel_sigma
+
+                clearances = Vector{Float64}(undef, pp.nb_lanes)
+                fill!(clearances, Inf)
+                closest_cars = Vector{Int}(undef, pp.nb_lanes)
+                fill!(closest_cars, 0)
+                sstar_margins = Vector{Float64}(undef, pp.nb_lanes)
+                if vel > sp.cars[1].vel
+                    # put at back
+                    # sstar is the sstar of the new guy
+                    for i in 1:length(sp.cars)
+                        lowlane, highlane = occupation_lanes(sp.cars[i].y, 0.0)
+                        back = sp.cars[i].x - pp.l_car
+                        if back < clearances[lowlane]
+                            clearances[lowlane] = back
+                            closest_cars[lowlane] = i
+                        end
+                        if back < clearances[highlane]
+                            clearances[highlane] = back
+                            closest_cars[highlane] = i
+                        end
+                    end
+                    for j in 1:pp.nb_lanes
+                        other = closest_cars[j]
+                        if other == 0
+                            sstar = 0.0
+                        else
+                            sstar = get_idm_s_star(behavior.p_idm::IDMParam, vel, vel-sp.cars[other].vel::Float64)
+                        end
+                        sstar_margins[j] = clearances[j] - sstar
+                    end
+                else
+                    for i in 1:length(sp.cars)
+                        lowlane, highlane = occupation_lanes(sp.cars[i].y, 0.0)
+                        front = pp.lane_length - (sp.cars[i].x + pp.l_car) # l_car is half the length of the old car plus half the length of the new one
+                        if front < clearances[lowlane]
+                            clearances[lowlane] = front
+                            closest_cars[lowlane] = i
+                        end
+                        if front < clearances[highlane]
+                            clearances[highlane] = front
+                            closest_cars[highlane] = i
+                        end
+                    end
+                    for j in 1:pp.nb_lanes
+                        other = closest_cars[j]
+                        if other == 0
+                            sstar = 0
+                        else
+                            sstar = get_idm_s_star(sp.cars[other].behavior.p_idm,
+                                                sp.cars[other].vel,
+                                                sp.cars[other].vel-vel)
+                        end
+                        sstar_margins[j] = clearances[j] - sstar
+                    end
+                end
+
+                margin, lane = findmax(sstar_margins)
+                
+                if margin > 0.0
+                    if vel > sp.cars[1].vel
+                        # at back
+                        push!(sp.cars, CarState(0.0, lane, vel, 0.0, behavior, next_id))
+                    else
+                        push!(sp.cars, CarState(pp.lane_length, lane, vel, 0.0, behavior, next_id))
+                    end
+                end
+            end
+
+            if sp.x > mdp.dmodel.max_dist
+                sp.terminal = :distance
+            elseif mdp.dmodel.lane_terminate && sp.cars[1].y == mdp.rmodel.target_lane
+                sp.terminal = :lane
+            end
+
+            @assert sp.cars[1].x == s.cars[1].x # ego should not move
+            @if_debug begin
+                if any(any(isnan.(c.behavior.p_idm)) for c in sp.cars)
+                    warn("NaN in idm.")
+                end
+            end
+        catch ex
+            if mdp.throw
+                rethrow(ex)
+            else
+                sp = deepcopy(s)
+                sp.terminal = ex
+                return sp
             end
         end
-    catch ex
-        if mdp.throw
-            rethrow(ex)
-        else
-            sp = deepcopy(s)
-            sp.terminal = Nullable{Any}(ex)
-            return sp
-        end
-    end
 
-    return sp
+        return sp
+    end
 end
 
-function reward(mdp::NoCrashProblem{NoCrashRewardModel}, s::MLState, ::MLAction, sp::MLState)
+function POMDPs.reward(mdp::NoCrashProblem{NoCrashRewardModel}, s::MLState, ::MLAction, sp::MLState)
     r = 0.0
     if sp.cars[1].y == mdp.rmodel.target_lane
         r += mdp.rmodel.reward_in_target_lane
@@ -649,7 +654,7 @@ end
 Assign behaviors to a given physical state.
 """
 function initial_state(mdp::NoCrashProblem, ps::MLPhysicalState, rng::AbstractRNG)
-    s = MLState(ps, Vector{CarState}(length(ps.cars)))
+    s = MLState(ps, Vector{CarState}(undef, length(ps.cars)))
     s.cars[1] = CarState(ps.cars[1], NORMAL)
     for i in 2:length(s.cars)
         behavior = rand(rng, mdp.dmodel.behaviors)
@@ -660,33 +665,21 @@ function initial_state(mdp::NoCrashProblem, ps::MLPhysicalState, rng::AbstractRN
     return s
 end
 
-function initial_state(p::NoCrashProblem, rng::AbstractRNG=Base.GLOBAL_RNG)
+function POMDPs.initialstate(p::NoCrashProblem)
     @if_debug println("debugging")
-    mdp = NoCrashMDP{typeof(p.rmodel), typeof(p.dmodel.behaviors)}(p.dmodel, p.rmodel, p.discount, p.throw) # make sure an MDP
-    return relaxed_initial_state(mdp, 200, rng)
+    ImplicitDistribution() do rng
+        mdp = NoCrashMDP{typeof(p.rmodel), typeof(p.dmodel.behaviors)}(p.dmodel, p.rmodel, p.discount, p.throw) # make sure an MDP
+        return relaxed_initial_state(mdp, 200, rng)
+    end
 end
 
-function generate_o(mdp::NoCrashProblem, s::MLState, a::MLAction, sp::MLState)
-    return MLObs(sp)
+function initial_state(p::NoCrashProblem, rng::AbstractRNG)
+    rand(rng, initialstate(p))
 end
 
-function generate_sor(pomdp::NoCrashPOMDP, s::MLState, a::MLAction, rng::AbstractRNG)
-    sp, r = generate_sr(pomdp, s, a, rng)
-    o = generate_o(pomdp, s, a, sp)
-    return sp, o, r
+function POMDPs.observation(mdp::NoCrashProblem, s::MLState, a::MLAction, sp::MLState)
+    return Deterministic(MLObs(sp))
 end
 
-@if_debug function generate_sori(pomdp::NoCrashPOMDP, s::MLState, a::MLAction, rng::AbstractRNG)
-    rngcp = copy(rng)
-    sp, o, r = generate_sor(pomdp, s, a, rng)
-    return sp, o, r, Dict(:rng=>rngcp)
-end
-
-@if_debug function generate_sri(mdp::NoCrashProblem, s, a, rng::AbstractRNG)
-    rngcp = copy(rng)
-    sp, r = generate_sr(mdp, s, a, rng)
-    return sp, r, Dict(:rng=>rngcp)
-end
-
-discount(mdp::Union{MLMDP,MLPOMDP}) = mdp.discount
-isterminal(mdp::Union{MLMDP,MLPOMDP},s::MLState) = !isnull(s.terminal)
+POMDPs.discount(mdp::Union{MLMDP,MLPOMDP}) = mdp.discount
+POMDPs.isterminal(mdp::Union{MLMDP,MLPOMDP},s::MLState) = nothing !== (s.terminal)

@@ -91,7 +91,7 @@ max_iters = 100
 
 for i in 1:max_iters
     sims = []
-    params = Vector{Vector{Float64}}(K)
+    params = Vector{Vector{Float64}}(undef,K)
     print("creating $K simulation sets")
     for k in 1:K
         p = rand(d)
