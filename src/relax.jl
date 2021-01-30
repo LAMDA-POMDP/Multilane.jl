@@ -10,7 +10,7 @@ function relaxed_initial_state(mdp::NoCrashProblem, steps=200,
     is = MLState(0.0, 0.0, CarState[CarState(pp.lane_length/2, 1.0, pp.v_med, 0.0, NORMAL, 1)])
     sim = HistoryRecorder(max_steps=steps, rng=rng)
     policy = solve(solver, mdp)
-    hist = simulate(sim, mdp, policy, is)
+    hist = POMDPs.simulate(sim, mdp, policy, is)
     s = last(state_hist(hist))
     s.t = 0.0
     s.x = 0.0

@@ -1,7 +1,11 @@
-using GenerativeModels
+using Multilane
 using MCTS
 using POMDPs
-using POMDPToolbox
+using POMDPModelTools
+using POMDPSimulators
+using Random
+using Test
+using Cairo
 
 #Set up problem configuration
 nb_lanes = 2
@@ -41,4 +45,4 @@ policy = solve(solver, mdp);
 
 sim = HistoryRecorder(rng=MersenneTwister(9), max_steps=10) # initialize a random number generator
 
-simulate(sim, mdp, policy, initial_state(mdp, sim.rng))
+simulate(sim, mdp, policy, rand(sim.rng, initialstate(mdp)))

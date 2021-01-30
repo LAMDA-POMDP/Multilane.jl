@@ -1,10 +1,13 @@
+using Test
 using Multilane
-using GenerativeModels
 using MCTS
 using RobustMCTS
 using POMDPs
-using POMDPToolbox
-using Base.Test
+using POMDPModelTools
+using POMDPSimulators
+using Random
+using Test
+using Cairo
 
 #Set up problem configuration
 nb_lanes = 4

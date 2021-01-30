@@ -18,8 +18,8 @@ struct QMDPWrapper{M,B,S,A} <: MDP{QMDPState{B,S}, A}
 end
 
 function QMDPWrapper(mdp::MDP, B::Type)
-    S = state_type(mdp)
-    A = POMDPs.action_type(mdp)
+    S = statetype(mdp)
+    A = actiontype(mdp)
     return QMDPWrapper{typeof(mdp), B, S, A}(mdp)
 end
 
@@ -40,7 +40,7 @@ function POMDPs.gen(m::QMDPWrapper, s::QMDPState, a, rng::AbstractRNG)
     else
         sp, r = @gen(:sp,:r)(m.mdp, rand(rng, s.b), a, rng)
     end
-    return (sp=state_type(m)(true, sp), r=r)
+    return (sp=statetype(m)(true, sp), r=r)
 end
 
 POMDPs.discount(m::QMDPWrapper) = discount(m.mdp)
@@ -66,7 +66,7 @@ POMDPs.solve(sol::GenQMDPSolver, qmdp::QMDPWrapper) = GenQMDPPolicy(solve(sol.so
 
 function POMDPModelTools.action_info(p::GenQMDPPolicy, b)
     # XXX if this ever makes it into the toolbox, need to get the mdp some other way
-    s = QMDPState{typeof(b), state_type(p.qmdp.mdp)}(false, b)
+    s = QMDPState{typeof(b), statetype(p.qmdp.mdp)}(false, b)
     return action_info(p.policy, s)
 end
 

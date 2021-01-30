@@ -1,10 +1,10 @@
-# using Reel
+using Reel
 using AutomotiveDrivingModels
 using AutoViz
 # using Multilane
-# using Interact
+using Interact
 # using POMDPToolbox
-# using Cairo
+using Cairo
 
 function interp_state(s, sp, frac)
     a = frac

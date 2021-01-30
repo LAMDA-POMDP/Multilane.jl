@@ -170,7 +170,7 @@ function max_safe_acc(mdp::NoCrashProblem, s::Union{MLState,MLObs}, lane_change:
             return Inf
         else
             n_brake_acc = nullable_max_safe_acc(smallest_gap, ego.vel, s.cars[car_in_front].vel, bp, dt)
-            return get(n_brake_acc, -mdp.dmodel.phys_param.brake_limit)
+            return n_brake_acc === nothing ? -mdp.dmodel.phys_param.brake_limit : n_brake_acc
         end
     end
     return Inf
