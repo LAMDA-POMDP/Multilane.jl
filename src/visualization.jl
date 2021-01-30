@@ -67,7 +67,7 @@ function visualize(p, s, r;
         push!(stuff, ac)
     end
 
-    render(stuff, cam=CarFollowCamera(1, 8.5), surface=surface)
+    AutoViz.render(stuff, cam=CarFollowCamera(1, 8.5), surface=surface)
 end
 
 # start with just lines
@@ -246,7 +246,6 @@ end
 =#
 
 
-#=
 BEHAVIOR_COLORS = Dict{Float64,AbstractString}(0.5=>"#0101DF",0.25=>"#D7DF01",0.0=>"#FF0000")
 
 function visualize(mdp::Union{MLMDP,MLPOMDP}, s::MLState, a::MLAction, sp::MLState;
@@ -267,9 +266,10 @@ function visualize(mdp::Union{MLMDP,MLPOMDP}, s::MLState, a::MLAction, sp::MLSta
     scene = Scene()
     for cs in s.cars
         push!(scene, Vehicle(VehicleState(VecSE2(cs.x, (cs.y-1.0)*pp.w_lane, 0.0), roadway, cs.vel), 
-                                VehicleDef(cs.id, AgentClass.CAR, pp.l_car, pp.w_car)))
+                                VehicleDef(AgentClass.CAR, pp.l_car, pp.w_car), cs.id))
+                                # VehicleDef(cs.id, AgentClass.CAR, pp.l_car, pp.w_car)))
     end
-    render(scene, roadway, [hbol, iol, cidol, cvol], cam=FitToContentCamera())
+    AutoViz.render(scene, roadway, [hbol, iol, cidol, cvol], cam=FitToContentCamera())
 end
 
 visualize(mdp::Union{MLMDP,MLPOMDP}, s::MLState) = visualize(mdp.dmodel.phys_param, s)
@@ -281,9 +281,10 @@ function visualize(pp::PhysicalParam, s::MLState)
     scene = Scene()
     for cs in s.cars
         push!(scene, Vehicle(VehicleState(VecSE2(cs.x, (cs.y-1.0)*pp.w_lane, 0.0), roadway, cs.vel), 
-                                VehicleDef(cs.id, AgentClass.CAR, pp.l_car, pp.w_car)))
+                                VehicleDef(AgentClass.CAR, pp.l_car, pp.w_car), cs.id))
+                                # VehicleDef(cs.id, AgentClass.CAR, pp.l_car, pp.w_car)))
     end
-    render(scene, roadway, [CarIDOverlay(), CarVelOverlay()], cam=FitToContentCamera())
+    AutoViz.render(scene, roadway, [CarIDOverlay(), CarVelOverlay()], cam=FitToContentCamera())
 end
 
 mutable struct HardBrakeOverlay <: SceneOverlay
@@ -293,10 +294,10 @@ end
 
 function AutoViz.render!(rm::RenderModel, o::HardBrakeOverlay, scene::Scene, roadway::Roadway)
     for veh in scene
-        if veh.def.id in o.ids
+        if veh.id in o.ids
             for (size, offset) in [(1.2,0.4), (1.0,0.8), (0.8,1.2)]
-                top = VecE2(veh.state.posG) + VecE2(-((1.+offset)*o.pp.l_car/2), size*o.pp.w_car/2)
-                bottom = VecE2(veh.state.posG) + VecE2(-((1.+offset)*o.pp.l_car/2), -size*o.pp.w_car/2)
+                top = VecE2(veh.state.posG) + VecE2(-((1 .+ offset)*o.pp.l_car/2), size*o.pp.w_car/2)
+                bottom = VecE2(veh.state.posG) + VecE2(-((1 .+ offset)*o.pp.l_car/2), -size*o.pp.w_car/2)
                 add_instruction!(rm, render_line_segment, (top.x, top.y, bottom.x, bottom.y, colorant"red", 0.3))
             end
         end
@@ -350,7 +351,7 @@ function AutoViz.render!(rm::RenderModel, o::CarIDOverlay, scene::Scene, roadway
         idx = cx - v.def.length/2
         idy = cy - v.def.width/2 + 0.1
         add_instruction!(rm, render_text,
-                         (@sprintf("id %02.d",v.def.id), idx, idy, 7, colorant"white"))
+                         (@sprintf("id %02.d",v.id), idx, idy, 7, colorant"white"))
     end
 end
 
@@ -366,4 +367,3 @@ function AutoViz.render!(rm::RenderModel, o::CarVelOverlay, scene::Scene, roadwa
                          (@sprintf("%04.1f",v.state.v), vx, vy, 7, colorant"white"))
     end
 end
-=#

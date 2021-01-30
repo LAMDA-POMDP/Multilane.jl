@@ -47,21 +47,23 @@ for i in 1:length(state_hist(hist))-1
     @test !is_crash(mdp, state_hist(hist)[i], state_hist(hist)[i+1])
 end
 
-# for i in 1:length(state_hist(hist))-1
-#     if is_crash(mdp, state_hist(hist)[i], state_hist(hist)[i+1])
-#         visualize(mdp, state_hist(hist)[i], action_hist(hist)[i], state_hist(hist)[i+1], two_frame_crash=true)
-#         # println(repr(mdp))
-#         # println(repr(sim.state_hist[i]))
-#         println("Crash after step $i")
-#         println("Chosen Action: $(sim.action_hist[i])")
-#         println("Available actions:")
-#         for a in actions(mdp, state_hist(sim)[i], actions(mdp))
-#             println(a)
-#         end
-#         println("Press Enter to continue.")
-#         readline(STDIN)
-#     # end
-# end
+a_hist = collect(action_hist(hist))
+s_hist = collect(state_hist(hist))
+for i in 1:length(s_hist)-1
+    if is_crash(mdp, s_hist[i], s_hist[i+1])
+        visualize(mdp, s_hist[i], a_hist[i], s_hist[i+1], two_frame_crash=true)
+        # println(repr(mdp))
+        # println(repr(s_hist[i]))
+        println("Crash after step $i")
+        println("Chosen Action: $(a_hist[i])")
+        println("Available actions:")
+        for a in actions(mdp, s_hist[i], actions(mdp))
+            println(a)
+        end
+        println("Press Enter to continue.")
+        readline(STDIN)
+    end
+end
 
 behaviors = standard_uniform(correlation=0.75)
 dmodel = NoCrashIDMMOBILModel(dmodel, behaviors)
@@ -82,15 +84,17 @@ up = BehaviorParticleUpdater(pomdp, 1000, 0.1, 0.1, wup, MersenneTwister(50000))
 @show n_steps(hist)
 
 # check for crashes
+a_hist = collect(action_hist(hist))
+s_hist = collect(state_hist(hist))
 for i in 1:length(state_hist(hist))-1
-    if is_crash(mdp, state_hist(hist)[i], state_hist(hist)[i+1])
+    if is_crash(mdp, s_hist[i], s_hist[i+1])
         println("Crash:")
         println("mdp = $mdp\n")
-        println("s = $(state_hist(hist)[i])\n")
-        println("a = $(action_hist(hist)[i])\n")
+        println("s = $(s_hist[i])\n")
+        println("a = $(a_hist[i])\n")
         println("Saving gif...")
         f = write_tmp_gif(mdp, hist)
         println("gif written to $f")
     end
-    @test !is_crash(mdp, state_hist(hist)[i], state_hist(hist)[i+1])
+    @test !is_crash(mdp, s_hist[i], s_hist[i+1])
 end
