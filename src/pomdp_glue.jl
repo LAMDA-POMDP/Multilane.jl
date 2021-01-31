@@ -19,7 +19,7 @@ end
 function solve(solver::MLPOMDPSolver, problem::MLMDP, up=get(solver.updater, nothing))
     internal_problem = MLPOMDP{MLState, MLAction, MLPhysicalState, typeof(problem.dmodel), typeof(problem.rmodel)}(problem.dmodel, problem.rmodel, problem.discount)
     policy = solve(solver.solver, internal_problem)
-    if up == nothing
+    if up === nothing
         up = POMDPs.updater(policy)
     else
         set_problem!(up, internal_problem)

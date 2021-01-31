@@ -107,7 +107,7 @@ function TestSet(ts::TestSet; kwargs...)
             ts.solver_problem_params[k] = v
         else
             solver_match = match(r"solver_(.*)", string(k))
-            if solver_match != nothing
+            if solver_match !== nothing
                 sk = Symbol(solver_match[1])
                 if haskey(ts.solver_problem_params, sk)
                     ts.solver_problem_params[sk] = v

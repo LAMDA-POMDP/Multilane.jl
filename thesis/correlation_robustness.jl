@@ -143,7 +143,7 @@ for cor in 0.0:0.2:1.0
         sim_problem = deepcopy(p)
         sim_problem.throw=true
 
-        if pup == nothing
+        if pup === nothing
             planner = solve(solvers[k], p)
         else
             (planner, up) = pup

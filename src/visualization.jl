@@ -43,11 +43,11 @@ function visualize(p, s, r;
     roadway = gen_straight_roadway(pp.nb_lanes, p.dmodel.max_dist+200.0, lane_width=pp.w_lane)
     push!(stuff, roadway)
     str = @sprintf("t: %6.2f\nx: %6.2f\nvel: %6.2f", s.t, s.x, s.cars[1].vel)
-    if r != nothing
+    if r !== nothing
         str *= @sprintf("\nr: %6.2f", r)
     end
     push!(stuff, str)
-    if tree != nothing
+    if tree !== nothing
         # push!(stuff, RelativeRender(tree, s.t, s.cars[1].vel))
         # use the velocity at the root so it doesn't move
         v = tree.node.tree.root_belief.physical.cars[1].vel
@@ -121,9 +121,9 @@ function AutoViz.render!(rm::RenderModel, r::RelativeRender{N}) where {N<:NodeWi
 
     # draw all the lines
     # XXX hack: should be most likely instead of rand
-    s = rand(Base.GLOBAL_RNG, b)
+    s = rand(Random.GLOBAL_RNG, b)
     for oc in o_children
-        sp = rand(Base.GLOBAL_RNG, tree.sr_beliefs[oc].b)
+        sp = rand(Random.GLOBAL_RNG, tree.sr_beliefs[oc].b)
         render_rel_lines!(rm, pp, s, sp, t, r.vel)
     end
 
@@ -198,7 +198,7 @@ function make_rollouts(planner, tree)
         cars = [CarState(ps.cars[i], first(b.particles[i])) for i in 1:length(b.particles)]
         state = MLState(ps, cars)
         mdp = NoCrashMDP{typeof(m.rmodel), typeof(m.dmodel.behaviors)}(m.dmodel, m.rmodel, m.discount, m.throw)
-        hist = simulate(hr, mdp, rop, state)
+        hist = POMDPs.simulate(hr, mdp, rop, state)
         rollouts[i] = hist
     end
     return rollouts

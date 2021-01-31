@@ -280,7 +280,7 @@ function merge_results!(r1::Dict{S1, Any}, r2::Dict{S2, Any}; careful=true) wher
     end
     if haskey(r2, "histories")
         if haskey(r1, "histories")
-            if r1["histories"] != nothing && r2["histories"] != nothing
+            if r1["histories"] !== nothing && r2["histories"] !== nothing
                 append!(r1["histories"], r2["histories"])
             end
         else

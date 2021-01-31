@@ -21,7 +21,7 @@ dmodel = NoCrashIDMMOBILModel(10, pp,
 rmodel = SuccessReward(lambda=1.0, speed_thresh=20.0, lane_change_cost=0.05)
 pomdp = NoCrashPOMDP{typeof(rmodel), typeof(dmodel.behaviors)}(dmodel, rmodel, 0.95, true);
 
-if !isdefined(:hist) || hist == nothing
+if !isdefined(:hist) || hist === nothing
     rng = MersenneTwister(11)
 
     s = initial_state(pomdp, rng)
